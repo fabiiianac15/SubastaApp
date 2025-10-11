@@ -1,0 +1,481 @@
+/* AuthForm.css */
+.auth-container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+  background: #f8f9fa;
+}
+
+/* Panel Izquierdo - Azul */
+.auth-left-panel {
+  flex: 1;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-left-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 100px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  transform: skew(-10deg);
+  transform-origin: top;
+}
+
+.auth-content {
+  text-align: center;
+  color: white;
+  padding: 2rem;
+  z-index: 2;
+}
+
+.auth-content h2 {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  font-weight: 700;
+}
+
+.auth-content p {
+  font-size: 1.1rem;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+  max-width: 400px;
+}
+
+.auth-toggle-btn {
+  background: transparent;
+  border: 2px solid white;
+  color: white;
+  padding: 12px 40px;
+  border-radius: 25px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 1px;
+}
+
+.auth-toggle-btn:hover {
+  background: white;
+  color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+}
+
+.auth-toggle-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Ilustraciones */
+.auth-illustration {
+  position: absolute;
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  height: 200px;
+}
+
+.illustration-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Martillo de subasta */
+.auction-hammer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-15deg);
+  animation: hammer-swing 3s ease-in-out infinite;
+}
+
+.hammer-head {
+  width: 40px;
+  height: 25px;
+  background: #ffd700;
+  border-radius: 5px;
+  position: relative;
+}
+
+.hammer-handle {
+  width: 8px;
+  height: 80px;
+  background: #8b4513;
+  position: absolute;
+  bottom: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 4px;
+}
+
+@keyframes hammer-swing {
+  0%, 100% { transform: translate(-50%, -50%) rotate(-15deg); }
+  50% { transform: translate(-50%, -50%) rotate(-45deg); }
+}
+
+/* Monedas flotantes */
+.floating-coins {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.coin {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  background: #ffd700;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: #8b4513;
+  animation: float 4s ease-in-out infinite;
+}
+
+.coin-1 {
+  top: 20%;
+  right: 20%;
+  animation-delay: -1s;
+}
+
+.coin-2 {
+  top: 60%;
+  right: 10%;
+  animation-delay: -2s;
+}
+
+.coin-3 {
+  top: 40%;
+  left: 10%;
+  animation-delay: -3s;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(180deg); }
+}
+
+/* Cohete de subastas */
+.auction-rocket {
+  position: absolute;
+  top: 30%;
+  left: 40%;
+  transform: translateX(-50%);
+  animation: rocket-fly 4s ease-in-out infinite;
+}
+
+.rocket-body {
+  width: 60px;
+  height: 100px;
+  background: linear-gradient(to bottom, #e0e0e0, #c0c0c0);
+  border-radius: 30px 30px 10px 10px;
+  position: relative;
+}
+
+.rocket-window {
+  width: 20px;
+  height: 20px;
+  background: #4fc3f7;
+  border-radius: 50%;
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.rocket-flames {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+}
+
+.flame {
+  width: 8px;
+  height: 20px;
+  background: linear-gradient(to top, #ff6b35, #ffa726);
+  border-radius: 0 0 50% 50%;
+  animation: flame-flicker 0.5s ease-in-out infinite alternate;
+}
+
+.flame:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.flame:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes rocket-fly {
+  0%, 100% { transform: translateX(-50%) translateY(0px) rotate(-5deg); }
+  50% { transform: translateX(-50%) translateY(-30px) rotate(5deg); }
+}
+
+@keyframes flame-flicker {
+  0% { height: 20px; }
+  100% { height: 15px; }
+}
+
+/* Persona con laptop */
+.person-bidding {
+  position: absolute;
+  bottom: 10%;
+  right: 20%;
+}
+
+.person-body {
+  width: 40px;
+  height: 60px;
+  background: #2c3e50;
+  border-radius: 20px 20px 5px 5px;
+  position: relative;
+}
+
+.person-head {
+  width: 25px;
+  height: 25px;
+  background: #f4c2a1;
+  border-radius: 50%;
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.laptop {
+  width: 30px;
+  height: 20px;
+  background: #34495e;
+  border-radius: 2px;
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Panel Derecho - Formulario */
+.auth-right-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  padding: 2rem;
+}
+
+.auth-form-container {
+  width: 100%;
+  max-width: 450px;
+}
+
+.auth-form {
+  width: 100%;
+}
+
+.auth-form h2 {
+  font-size: 2.5rem;
+  margin-bottom: 2rem;
+  color: #2c3e50;
+  font-weight: 700;
+  text-align: center;
+}
+
+.error-message {
+  background: #fee;
+  color: #c33;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border: 1px solid #fcc;
+  text-align: center;
+}
+
+.form-fields {
+  margin-bottom: 2rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.input-group {
+  position: relative;
+  flex: 1;
+  margin-bottom: 1rem;
+}
+
+.input-icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #999;
+  font-size: 1.1rem;
+  z-index: 1;
+}
+
+.input-group input,
+.input-group select {
+  width: 100%;
+  padding: 15px 15px 15px 45px;
+  border: 2px solid #e1e8ed;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background: #f8f9fa;
+  box-sizing: border-box;
+}
+
+.input-group input:focus,
+.input-group select:focus {
+  outline: none;
+  border-color: #667eea;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid #e1e8ed;
+}
+
+.form-section h4 {
+  color: #667eea;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+}
+
+.auth-submit-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 15px;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 1px;
+  margin-bottom: 2rem;
+}
+
+.auth-submit-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+}
+
+.auth-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Redes Sociales */
+.social-login {
+  text-align: center;
+}
+
+.social-login p {
+  color: #666;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.social-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+}
+
+.social-btn {
+  width: 50px;
+  height: 50px;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.social-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+}
+
+.facebook {
+  background: #3b5998;
+  color: white;
+}
+
+.twitter {
+  background: #1da1f2;
+  color: white;
+}
+
+.google {
+  background: #dd4b39;
+  color: white;
+}
+
+.linkedin {
+  background: #0077b5;
+  color: white;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .auth-container {
+    flex-direction: column;
+  }
+  
+  .auth-left-panel {
+    height: 40vh;
+  }
+  
+  .auth-right-panel {
+    height: 60vh;
+    padding: 1rem;
+  }
+  
+  .auth-content h2 {
+    font-size: 2rem;
+  }
+  
+  .auth-form h2 {
+    font-size: 2rem;
+  }
+  
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+  
+  .auth-illustration {
+    display: none;
+  }
+}

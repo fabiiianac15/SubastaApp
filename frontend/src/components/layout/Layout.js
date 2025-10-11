@@ -1,0 +1,422 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  FaGavel, 
+  FaHome, 
+  FaUser, 
+  FaPlus, 
+  FaEye, 
+  FaTrophy, 
+  FaChartBar, 
+  FaCog, 
+  FaSignOutAlt, 
+  FaBars, 
+  FaTimes,
+  FaBell,
+  FaSearch,
+  FaCamera,
+  FaHeart,
+  FaListAlt,
+  FaHandHolding,
+  FaChevronLeft,
+  FaChevronRight
+} from 'react-icons/fa';
+import { useAuth, useAuthActions } from '../../context/AuthContext';
+import ProfileModal from '../profile/ProfileModal';
+import LoadingTransition from '../common/LoadingTransition';
+import './Layout.css';
+
+const Layout = ({ children, currentPage = 'home', onPageChange }) => {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [showImageUpload, setShowImageUpload] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileImage, setProfileImage] = useState(null);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [navigationTarget, setNavigationTarget] = useState('');
+  const { user } = useAuth();
+  const { logout } = useAuthActions();
+  const fileInputRef = useRef(null);
+  const navigate = useNavigate();
+
+  // Cerrar dropdown al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (profileDropdownOpen && !event.target.closest('.user-profile-section')) {
+        setProfileDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [profileDropdownOpen]);
+
+  // Cargar imagen de perfil del localStorage
+  useEffect(() => {
+    const savedImage = localStorage.getItem(`profileImage_${user?._id}`);
+    if (savedImage) {
+      setProfileImage(savedImage);
+    }
+  }, [user]);
+
+  const menuItems = [
+    { icon: FaHome, label: 'Dashboard', key: 'dashboard', description: 'Resumen general' },
+    { icon: FaEye, label: 'Ver Subastas', key: 'auctions', description: 'Explorar subastas' },
+    ...(user?.tipoUsuario === 'vendedor' ? [{ 
+      icon: FaPlus, 
+      label: 'Crear Subasta', 
+      key: 'create', 
+      description: 'Nueva subasta' 
+    }] : []),
+    { icon: FaListAlt, label: 'Mis Subastas', key: 'my-auctions', description: 'Gestionar subastas' },
+    { icon: FaHandHolding, label: 'Mis Pujas', key: 'my-bids', description: 'Historial de pujas' },
+    { icon: FaHeart, label: 'Favoritos', key: 'favorites', description: 'Subastas guardadas' },
+    { icon: FaChartBar, label: 'Estadísticas', key: 'stats', description: 'Análisis y datos' },
+    { icon: FaCog, label: 'Configuración', key: 'settings', description: 'Preferencias' }
+  ];
+
+  const handleImageUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfileImage(reader.result);
+        localStorage.setItem(`profileImage_${user._id}`, reader.result);
+        setShowImageUpload(false);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+  };
+
+  const handleMenuClick = async (section) => {
+    if (section === currentPage) return;
+    
+    setIsNavigating(true);
+    setNavigationTarget(section);
+    
+    // Simular carga
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Cambiar página
+    if (onPageChange) {
+      onPageChange(section);
+    }
+    // Navegar por ruta según la sección
+    const routesMap = {
+      dashboard: '/dashboard',
+      auctions: '/dashboard/auctions',
+      create: '/dashboard/create',
+      'my-auctions': '/dashboard/my-auctions',
+      'my-bids': '/dashboard/my-bids',
+      favorites: '/dashboard/favorites',
+      stats: '/dashboard/stats',
+      settings: '/dashboard/settings'
+    };
+    if (routesMap[section]) {
+      navigate(routesMap[section]);
+    }
+    
+    setIsNavigating(false);
+    setNavigationTarget('');
+    
+    // Cerrar sidebar en móvil
+    if (window.innerWidth <= 768) {
+      setSidebarOpen(false);
+    }
+  };
+
+  const toggleSidebar = () => {
+    if (window.innerWidth <= 768) {
+      setSidebarOpen(!sidebarOpen);
+    } else {
+      setSidebarCollapsed(!sidebarCollapsed);
+    }
+  };
+
+  return (
+    <div className="layout-container">
+      {/* Sidebar */}
+      <AnimatePresence>
+        {(sidebarOpen || window.innerWidth > 768) && (
+          <motion.aside 
+            className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}
+            initial={{ x: sidebarCollapsed ? -200 : -250, width: sidebarCollapsed ? 80 : 250 }}
+            animate={{ x: 0, width: sidebarCollapsed ? 80 : 250 }}
+            exit={{ x: sidebarCollapsed ? -80 : -250 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+          >
+            <div className="sidebar-header">
+              <div className="logo">
+                <FaGavel className="logo-icon" />
+                {!sidebarCollapsed && <h2>SubastaApp</h2>}
+              </div>
+              
+              <div className="sidebar-controls">
+                <button 
+                  className="collapse-sidebar"
+                  onClick={toggleSidebar}
+                  title={sidebarCollapsed ? "Expandir sidebar" : "Colapsar sidebar"}
+                >
+                  {sidebarCollapsed ? <FaChevronRight /> : <FaChevronLeft />}
+                </button>
+                
+                {window.innerWidth <= 768 && (
+                  <button 
+                    className="close-sidebar"
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <FaTimes />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <nav className="sidebar-nav">
+              {menuItems.map((item, index) => (
+                <motion.button
+                  key={item.key}
+                  className={`nav-item ${currentPage === item.key ? 'active' : ''} ${sidebarCollapsed ? 'collapsed' : ''}`}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={{ x: sidebarCollapsed ? 0 : 8, scale: sidebarCollapsed ? 1.1 : 1 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleMenuClick(item.key)}
+                  title={sidebarCollapsed ? item.label : ''}
+                >
+                  <item.icon className="nav-icon" />
+                  {!sidebarCollapsed && (
+                    <div className="nav-content">
+                      <span className="nav-label">{item.label}</span>
+                      <span className="nav-description">{item.description}</span>
+                    </div>
+                  )}
+                  {currentPage === item.key && (
+                    <motion.div 
+                      className="active-indicator"
+                      layoutId="activeIndicator"
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                    />
+                  )}
+                </motion.button>
+              ))}
+            </nav>
+
+            <div className="sidebar-footer">
+              <button 
+                className={`logout-btn ${sidebarCollapsed ? 'collapsed' : ''}`}
+                onClick={handleLogout}
+                title={sidebarCollapsed ? 'Cerrar Sesión' : ''}
+              >
+                <FaSignOutAlt />
+                {!sidebarCollapsed && <span>Cerrar Sesión</span>}
+              </button>
+            </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+
+      {/* Main Content */}
+      <div className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${!sidebarOpen && window.innerWidth <= 768 ? 'sidebar-closed' : ''}`}>
+        {/* Top Navbar */}
+        <header className="top-navbar">
+          <div className="navbar-left">
+            <button 
+              className="menu-toggle"
+              onClick={toggleSidebar}
+            >
+              {sidebarCollapsed || (!sidebarOpen && window.innerWidth <= 768) ? <FaBars /> : <FaChevronLeft />}
+            </button>
+            
+            <div className="search-bar">
+              <FaSearch className="search-icon" />
+              <input 
+                type="text" 
+                placeholder="Buscar subastas..." 
+              />
+            </div>
+          </div>
+
+          <div className="navbar-right">
+            <button className="notification-btn">
+              <FaBell />
+              <span className="notification-badge">3</span>
+            </button>
+
+            <div className="user-profile-section">
+              <button 
+                className="user-profile-btn"
+                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+              >
+                <div className="user-avatar">
+                  {profileImage ? (
+                    <img src={profileImage} alt="Profile" />
+                  ) : (
+                    <div className="avatar-placeholder">
+                      {user?.nombre?.charAt(0)}{user?.apellido?.charAt(0)}
+                    </div>
+                  )}
+                  <div className="avatar-status"></div>
+                </div>
+                <div className="user-info">
+                  <span className="user-name">{user?.nombre} {user?.apellido}</span>
+                  <span className="user-type">{user?.tipoUsuario}</span>
+                </div>
+              </button>
+
+              <AnimatePresence>
+                {profileDropdownOpen && (
+                  <motion.div 
+                    className="profile-dropdown"
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <div className="dropdown-header">
+                      <div className="dropdown-avatar">
+                        {profileImage ? (
+                          <img src={profileImage} alt="Profile" />
+                        ) : (
+                          <div className="avatar-placeholder">
+                            {user?.nombre?.charAt(0)}{user?.apellido?.charAt(0)}
+                          </div>
+                        )}
+                        <button 
+                          className="change-photo-btn"
+                          onClick={() => setShowImageUpload(true)}
+                        >
+                          <FaCamera />
+                        </button>
+                      </div>
+                      <div>
+                        <h4>{user?.nombre} {user?.apellido}</h4>
+                        <p>{user?.email}</p>
+                        <span className="user-badge">{user?.tipoUsuario}</span>
+                      </div>
+                    </div>
+
+                    <div className="dropdown-menu">
+                      <button 
+                        className="dropdown-item"
+                        onClick={() => {
+                          setShowProfileModal(true);
+                          setProfileDropdownOpen(false);
+                        }}
+                      >
+                        <FaUser />
+                        Ver Perfil Completo
+                      </button>
+                      <button className="dropdown-item">
+                        <FaCog />
+                        Configuración
+                      </button>
+                      <div className="dropdown-divider"></div>
+                      <button 
+                        className="dropdown-item logout"
+                        onClick={handleLogout}
+                      >
+                        <FaSignOutAlt />
+                        Cerrar Sesión
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </header>
+
+        {/* Content Area */}
+        <main className="content-area">
+          <AnimatePresence mode="wait">
+            {isNavigating ? (
+              <LoadingTransition key="loading" targetPage={navigationTarget} />
+            ) : (
+              <motion.div
+                key={currentPage}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                {children}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </main>
+      </div>
+
+      {/* Backdrop para mobile */}
+      {sidebarOpen && (
+        <div 
+          className="sidebar-backdrop"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Modal de cambio de imagen */}
+      <AnimatePresence>
+        {showImageUpload && (
+          <motion.div 
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div 
+              className="modal-content"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+            >
+              <div className="modal-header">
+                <h3>Cambiar Foto de Perfil</h3>
+                <button 
+                  className="modal-close"
+                  onClick={() => setShowImageUpload(false)}
+                >
+                  <FaTimes />
+                </button>
+              </div>
+              
+              <div className="modal-body">
+                <div className="upload-area">
+                  <FaCamera className="upload-icon" />
+                  <p>Selecciona una nueva foto de perfil</p>
+                  <button 
+                    className="upload-btn"
+                    onClick={() => fileInputRef.current.click()}
+                  >
+                    Seleccionar Archivo
+                  </button>
+                  <input 
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    style={{ display: 'none' }}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Profile Modal */}
+      <ProfileModal 
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+      />
+    </div>
+  );
+};
+
+export default Layout;
