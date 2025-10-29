@@ -221,53 +221,54 @@ const WelcomePage = () => {
     { icon: FaChartLine, value: '$2.5M+', label: 'Transacciones', color: '#e53e3e' }
   ];
 
-  // Subastas destacadas - ahora obtenidas de la API
-  useEffect(() => {
-    const cargarSubastas = async () => {
-      try {
-        setLoading(true);
-        const response = await productService.obtenerSubastas({
-          limite: 8,
-          estado: 'activo',
-          ordenar: '-numeroOfertas'
-        });
-        
-        // Agregar imágenes de prueba si no las tienen
-        const subastas = response.data?.map((subasta, index) => ({
-          ...subasta,
-          featured: index === 0, // Marcar la primera como destacada
-          imagenes: subasta.imagenes?.length > 0 ? subasta.imagenes : [
-            {
-              url: `/uploads/products/product-1758258006100-508408191.jpeg`,
-              alt: `${subasta.titulo} - imagen 1`,
-              esPortada: true
-            },
-            {
-              url: `/uploads/products/product-1758258006288-233267476.jpg`,
-              alt: `${subasta.titulo} - imagen 2`,
-              esPortada: false
-            },
-            {
-              url: `/uploads/products/product-1758258045170-11283485.jpeg`,
-              alt: `${subasta.titulo} - imagen 3`,
-              esPortada: false
-            }
-          ]
-        })) || [];
-        
-        setSubastas(subastas);
-        setStatsData(prev => ({
-          ...prev,
-          totalSubastas: response.pagination?.total || 0
-        }));
-      } catch (error) {
-        console.error('Error cargando subastas:', error);
-        setSubastas([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Función para cargar subastas
+  const cargarSubastas = async () => {
+    try {
+      setLoading(true);
+      const response = await productService.obtenerSubastas({
+        limite: 8,
+        estado: 'activo',
+        ordenar: '-numeroOfertas'
+      });
+      
+      // Agregar imágenes de prueba si no las tienen
+      const subastas = response.data?.map((subasta, index) => ({
+        ...subasta,
+        featured: index === 0, // Marcar la primera como destacada
+        imagenes: subasta.imagenes?.length > 0 ? subasta.imagenes : [
+          {
+            url: `/uploads/products/product-1758258006100-508408191.jpeg`,
+            alt: `${subasta.titulo} - imagen 1`,
+            esPortada: true
+          },
+          {
+            url: `/uploads/products/product-1758258006288-233267476.jpg`,
+            alt: `${subasta.titulo} - imagen 2`,
+            esPortada: false
+          },
+          {
+            url: `/uploads/products/product-1758258045170-11283485.jpeg`,
+            alt: `${subasta.titulo} - imagen 3`,
+            esPortada: false
+          }
+        ]
+      })) || [];
+      
+      setSubastas(subastas);
+      setStatsData(prev => ({
+        ...prev,
+        totalSubastas: response.pagination?.total || 0
+      }));
+    } catch (error) {
+      console.error('Error cargando subastas:', error);
+      setSubastas([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Cargar subastas al montar el componente
+  useEffect(() => {
     cargarSubastas();
   }, []);
 
@@ -665,14 +666,11 @@ const WelcomePage = () => {
         isOpen={showCreateModal || !!editAuction}
         onClose={() => { setShowCreateModal(false); setEditAuction(null); }}
         auction={editAuction}
-        onSuccess={auction => {
+        onSuccess={async (auction) => {
           setShowCreateModal(false);
           setEditAuction(null);
-          if (auction && auction._id) {
-            setSubastas(prev => prev.map(s => (s._id === auction._id ? auction : s)));
-          } else if (auction) {
-            setSubastas(prev => [auction, ...prev]);
-          }
+          // Recargar todas las subastas para mostrar la nueva
+          await cargarSubastas();
         }}
       />
 

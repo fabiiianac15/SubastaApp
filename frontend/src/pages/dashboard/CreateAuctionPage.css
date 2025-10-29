@@ -25,7 +25,7 @@
 }
 
 .creation-wizard {
-  background: white;
+  background: rgba(15, 20, 25, 0.8);
   border-radius: 1rem;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
   overflow: hidden;
@@ -78,7 +78,7 @@
 }
 
 .step.active .step-number {
-  background: white;
+  background: rgba(15, 20, 25, 0.8);
   color: #667eea;
   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.3);
 }
@@ -133,7 +133,7 @@
   border-radius: 0.5rem;
   font-size: 1rem;
   transition: border-color 0.2s, box-shadow 0.2s;
-  background: white;
+  background: rgba(15, 20, 25, 0.8);
 }
 
 .form-group input:focus,
@@ -296,7 +296,7 @@
 }
 
 .summary-card {
-  background: #f7fafc;
+  background: rgba(15, 20, 25, 0.6);
   border-radius: 0.5rem;
   padding: 1.5rem;
   border: 1px solid #e2e8f0;
@@ -322,7 +322,7 @@
   display: flex;
   justify-content: space-between;
   padding: 2rem 3rem;
-  background: #f7fafc;
+  background: rgba(15, 20, 25, 0.6);
   border-top: 1px solid #e2e8f0;
 }
 
@@ -354,13 +354,13 @@
 }
 
 .btn-secondary {
-  background: white;
+  background: rgba(15, 20, 25, 0.8);
   color: #4a5568;
   border: 2px solid #e2e8f0;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #f7fafc;
+  background: rgba(15, 20, 25, 0.6);
   border-color: #cbd5e0;
 }
 

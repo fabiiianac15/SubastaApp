@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
+import { iniciarSeccion, finalizarSeccion, registrarClick } from '../../services/analyticsService';
+import productService from '../../services/productService';
 import { 
   FaGavel, 
   FaPlus, 
@@ -34,6 +36,38 @@ const Dashboard = () => {
   });
 
   const [timeFrame, setTimeFrame] = useState('week');
+  const [recentAuctions, setRecentAuctions] = useState([]);
+  const [loadingAuctions, setLoadingAuctions] = useState(true);
+
+  // 🔥 TRACKING: Iniciar sesión en dashboard
+  useEffect(() => {
+    iniciarSeccion('dashboard');
+    return () => {
+      finalizarSeccion();
+    };
+  }, []);
+
+  // Cargar subastas recientes desde la base de datos
+  useEffect(() => {
+    loadRecentAuctions();
+  }, []);
+
+  const loadRecentAuctions = async () => {
+    try {
+      setLoadingAuctions(true);
+      const response = await productService.obtenerSubastas({
+        estado: 'activo',
+        ordenar: '-createdAt',
+        limite: 6
+      });
+      setRecentAuctions(response.data || []);
+    } catch (error) {
+      console.error('Error loading recent auctions:', error);
+      setRecentAuctions([]);
+    } finally {
+      setLoadingAuctions(false);
+    }
+  };
 
   const quickActions = [
     {
@@ -66,32 +100,7 @@ const Dashboard = () => {
     }
   ];
 
-  const recentAuctions = [
-    {
-      id: 1,
-      title: 'iPhone 14 Pro Max',
-      currentBid: 1200,
-      timeLeft: '2h 30m',
-      image: '/api/placeholder/80/80',
-      status: 'leading'
-    },
-    {
-      id: 2,
-      title: 'MacBook Pro M2',
-      currentBid: 1800,
-      timeLeft: '1d 5h',
-      image: '/api/placeholder/80/80',
-      status: 'watching'
-    },
-    {
-      id: 3,
-      title: 'Sony Camera Alpha',
-      currentBid: 950,
-      timeLeft: '30m',
-      image: '/api/placeholder/80/80',
-      status: 'outbid'
-    }
-  ];
+  const STATIC_BASE = (process.env.REACT_APP_API_URL?.replace('/api','')) || 'http://localhost:5000';
 
   return (
     <div className="modern-dashboard">
@@ -134,6 +143,10 @@ const Dashboard = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 * index }}
+              onClick={() => {
+                // 🔥 TRACKING: Click en acción rápida
+                registrarClick('boton', `Acción: ${action.title}`, null);
+              }}
             >
               <div className="action-icon">
                 <action.icon />
@@ -157,19 +170,31 @@ const Dashboard = () => {
           <div className="time-filter">
             <button 
               className={timeFrame === 'week' ? 'active' : ''}
-              onClick={() => setTimeFrame('week')}
+              onClick={() => {
+                setTimeFrame('week');
+                // 🔥 TRACKING: Click en filtro temporal
+                registrarClick('boton', 'Estadísticas: Semana', null);
+              }}
             >
               Semana
             </button>
             <button 
               className={timeFrame === 'month' ? 'active' : ''}
-              onClick={() => setTimeFrame('month')}
+              onClick={() => {
+                setTimeFrame('month');
+                // 🔥 TRACKING: Click en filtro temporal
+                registrarClick('boton', 'Estadísticas: Mes', null);
+              }}
             >
               Mes
             </button>
             <button 
               className={timeFrame === 'year' ? 'active' : ''}
-              onClick={() => setTimeFrame('year')}
+              onClick={() => {
+                setTimeFrame('year');
+                // 🔥 TRACKING: Click en filtro temporal
+                registrarClick('boton', 'Estadísticas: Año', null);
+              }}
             >
               Año
             </button>
@@ -291,37 +316,68 @@ const Dashboard = () => {
           transition={{ duration: 0.6, delay: 0.4 }}
         >
           <h2>Subastas Recientes</h2>
-          <div className="auctions-list">
-            {recentAuctions.map((auction, index) => (
-              <motion.div
-                key={auction.id}
-                className="auction-item"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.1 * index }}
-                whileHover={{ scale: 1.02 }}
-              >
-                <div className="auction-image">
-                  <div className="image-placeholder">
-                    <FaGavel />
-                  </div>
-                </div>
-                <div className="auction-info">
-                  <h4>{auction.title}</h4>
-                  <p className="current-bid">${auction.currentBid}</p>
-                  <p className="time-left">
-                    <FaClock />
-                    {auction.timeLeft}
-                  </p>
-                </div>
-                <div className={`auction-status ${auction.status}`}>
-                  {auction.status === 'leading' && '🥇 Liderando'}
-                  {auction.status === 'watching' && '👀 Observando'}
-                  {auction.status === 'outbid' && '⚠️ Superado'}
-                </div>
-              </motion.div>
-            ))}
-          </div>
+          {loadingAuctions ? (
+            <div className="auctions-list">
+              {Array.from({length: 3}).map((_, i) => (
+                <div key={i} className="auction-item skeleton" />
+              ))}
+            </div>
+          ) : recentAuctions.length > 0 ? (
+            <div className="auctions-list">
+              {recentAuctions.map((auction, index) => {
+                const timeRemaining = productService.calcularTiempoRestante(auction.fechaFin);
+                const imageUrl = auction.imagenes && auction.imagenes.length > 0
+                  ? (auction.imagenes[0].url?.startsWith('http') 
+                      ? auction.imagenes[0].url 
+                      : `${STATIC_BASE}${auction.imagenes[0].url}`)
+                  : null;
+                
+                return (
+                  <motion.div
+                    key={auction._id}
+                    className="auction-item"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.1 * index }}
+                    whileHover={{ scale: 1.02 }}
+                    onClick={() => {
+                      // 🔥 TRACKING: Click en subasta reciente
+                      registrarClick('producto', auction.titulo, auction._id);
+                    }}
+                  >
+                    <div className="auction-image">
+                      {imageUrl ? (
+                        <img src={imageUrl} alt={auction.titulo} onError={(e) => {e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex';}} />
+                      ) : null}
+                      <div className="image-placeholder" style={{display: imageUrl ? 'none' : 'flex'}}>
+                        <FaGavel />
+                      </div>
+                    </div>
+                    <div className="auction-info">
+                      <h4>{auction.titulo}</h4>
+                      <p className="current-bid">
+                        {productService.formatearMoneda(auction.precioActual || auction.precioInicial)}
+                      </p>
+                      <p className="time-left">
+                        <FaClock />
+                        {timeRemaining && timeRemaining.total > 0 
+                          ? productService.formatearTiempo(timeRemaining)
+                          : 'Finalizada'}
+                      </p>
+                    </div>
+                    <div className="auction-status watching">
+                      <FaUsers /> {auction.numeroOfertas || 0} ofertas
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="no-auctions-message">
+              <FaGavel className="no-auctions-icon" />
+              <p>No hay subastas recientes</p>
+            </div>
+          )}
         </motion.div>
       </div>
     </div>

@@ -9,7 +9,7 @@ body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f8f9fa;
+  background: #0a0b0f;
   color: #2c3e50;
   line-height: 1.6;
 }
@@ -111,7 +111,7 @@ body {
 
 /* Card Styles */
 .card {
-  background: white;
+  background: #0f1419;
   border-radius: 12px;
   padding: 2rem;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
@@ -154,13 +154,13 @@ body {
   border-radius: 8px;
   font-size: 1rem;
   transition: all 0.3s ease;
-  background: #f8f9fa;
+  background: #0a0b0f;
 }
 
 .form-control:focus {
   outline: none;
   border-color: #667eea;
-  background: white;
+  background: #0f1419;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
@@ -204,13 +204,13 @@ body {
 }
 
 .alert-error {
-  background: #f8d7da;
+  background: rgba(220, 38, 38, 0.2);
   color: #721c24;
   border: 1px solid #f5c6cb;
 }
 
 .alert-warning {
-  background: #fff3cd;
+  background: rgba(245, 158, 11, 0.2);
   color: #856404;
   border: 1px solid #ffeaa7;
 }
@@ -248,7 +248,7 @@ html {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: rgba(20, 25, 30, 0.6);
 }
 
 ::-webkit-scrollbar-thumb {

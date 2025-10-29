@@ -80,7 +80,7 @@
 }
 
 .stat-card {
-  background: white;
+  background: rgba(15, 20, 25, 0.9);
   border-radius: 16px;
   padding: 2rem;
   box-shadow: 0 4px 20px rgba(0,0,0,0.08);
@@ -164,7 +164,7 @@
   padding: 1rem 1rem 1rem 3rem;
   border: none;
   border-radius: 12px;
-  background: white;
+  background: rgba(15, 20, 25, 0.9);
   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
   font-size: 1rem;
   color: #2d3748;
@@ -187,7 +187,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 1rem 1.5rem;
-  background: white;
+  background: rgba(15, 20, 25, 0.9);
   border: none;
   border-radius: 12px;
   cursor: pointer;
@@ -208,7 +208,7 @@
   padding: 1rem 1.5rem;
   border: none;
   border-radius: 12px;
-  background: white;
+  background: rgba(15, 20, 25, 0.9);
   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
   font-size: 1rem;
   color: #2d3748;
@@ -224,7 +224,7 @@
 
 /* Filter Bar */
 .filter-bar {
-  background: white;
+  background: rgba(15, 20, 25, 0.9);
   border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 2rem;
@@ -282,7 +282,7 @@
 }
 
 .auction-card {
-  background: white;
+  background: rgba(15, 20, 25, 0.9);
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0,0,0,0.08);
@@ -500,7 +500,7 @@
 .empty-state {
   text-align: center;
   padding: 4rem 2rem;
-  background: white;
+  background: rgba(15, 20, 25, 0.9);
   border-radius: 16px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.08);
 }

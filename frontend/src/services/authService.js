@@ -49,6 +49,55 @@ const authService = {
     }
   },
 
+  // Actualizar perfil
+  updateProfile: async (userData) => {
+    try {
+      const response = await API.put('/auth/profile', userData);
+      
+      if (response.data.success) {
+        // Actualizar usuario en localStorage
+        const currentUser = JSON.parse(localStorage.getItem('user'));
+        const updatedUser = {
+          ...currentUser,
+          ...response.data.data
+        };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+      }
+      
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { message: 'Error actualizando perfil' };
+    }
+  },
+
+  // Cambiar contraseña
+  changePassword: async (passwords) => {
+    try {
+      const response = await API.put('/auth/change-password', passwords);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { message: 'Error cambiando contraseña' };
+    }
+  },
+
+  // Eliminar cuenta
+  deleteAccount: async (password) => {
+    try {
+      const response = await API.delete('/auth/profile', {
+        data: { password }
+      });
+      
+      if (response.data.success) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+      
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { message: 'Error eliminando cuenta' };
+    }
+  },
+
   // Verificar si está autenticado
   isAuthenticated: () => {
     return !!localStorage.getItem('token');

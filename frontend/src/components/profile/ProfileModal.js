@@ -14,16 +14,25 @@ import {
   FaGavel,
   FaTrophy,
   FaShoppingBag,
-  FaStar
+  FaStar,
+  FaTrash,
+  FaExclamationTriangle
 } from 'react-icons/fa';
 import { useAuth, useAuthActions } from '../../context/AuthContext';
+import authService from '../../services/authService';
 import './ProfileModal.css';
 
 const ProfileModal = ({ isOpen, onClose }) => {
   const { user } = useAuth();
+  const { logout, updateUser } = useAuthActions();
   const [isEditing, setIsEditing] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [formData, setFormData] = useState({
     nombre: user?.nombre || '',
     apellido: user?.apellido || '',
@@ -41,6 +50,27 @@ const ProfileModal = ({ isOpen, onClose }) => {
   });
   
   const fileInputRef = useRef(null);
+
+  // Actualizar formData cuando user cambie
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        nombre: user.nombre || '',
+        apellido: user.apellido || '',
+        email: user.email || '',
+        telefono: user.telefono || '',
+        direccion: {
+          calle: user.direccion?.calle || '',
+          ciudad: user.direccion?.ciudad || '',
+          codigoPostal: user.direccion?.codigoPostal || '',
+          pais: user.direccion?.pais || ''
+        },
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+    }
+  }, [user]);
 
   // Cargar imagen de perfil del localStorage
   useEffect(() => {
@@ -94,26 +124,109 @@ const ProfileModal = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleSave = () => {
-    // Aquí implementarías la lógica para actualizar el perfil
-    console.log('Guardando perfil:', formData);
-    setIsEditing(false);
+  const handleSave = async () => {
+    // EDITAR PERFIL: Actualiza nombre, apellido, email, teléfono, dirección (calle, ciudad, código postal, país)
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const updateData = {
+        nombre: formData.nombre,
+        apellido: formData.apellido,
+        email: formData.email,
+        telefono: formData.telefono,
+        direccion: formData.direccion
+      };
+
+      const response = await authService.updateProfile(updateData);
+      
+      if (response.success) {
+        updateUser(response.data);
+        setSuccess('Perfil actualizado exitosamente');
+        setIsEditing(false);
+        
+        // Limpiar mensaje después de 3 segundos
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch (err) {
+      setError(err.message || 'Error al actualizar el perfil');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handlePasswordChange = () => {
-    // Aquí implementarías la lógica para cambiar la contraseña
-    if (formData.newPassword !== formData.confirmPassword) {
-      alert('Las contraseñas no coinciden');
+  const handlePasswordChange = async () => {
+    setError('');
+    setSuccess('');
+
+    if (!formData.currentPassword || !formData.newPassword || !formData.confirmPassword) {
+      setError('Por favor complete todos los campos de contraseña');
       return;
     }
-    console.log('Cambiando contraseña');
-    setShowPasswordChange(false);
-    setFormData(prev => ({
-      ...prev,
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: ''
-    }));
+
+    if (formData.newPassword !== formData.confirmPassword) {
+      setError('Las contraseñas no coinciden');
+      return;
+    }
+
+    if (formData.newPassword.length < 6) {
+      setError('La nueva contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await authService.changePassword({
+        currentPassword: formData.currentPassword,
+        newPassword: formData.newPassword
+      });
+
+      if (response.success) {
+        setSuccess('Contraseña actualizada exitosamente');
+        setShowPasswordChange(false);
+        setFormData(prev => ({
+          ...prev,
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        }));
+
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch (err) {
+      setError(err.message || 'Error al cambiar la contraseña');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    // BORRAR PERFIL: Elimina cuenta requiriendo contraseña, borra todos los datos del usuario
+    if (!deletePassword) {
+      setError('Por favor ingrese su contraseña para confirmar');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await authService.deleteAccount(deletePassword);
+
+      if (response.success) {
+        // Limpiar todo y cerrar sesión
+        localStorage.removeItem(`profileImage_${user._id}`);
+        logout();
+        onClose();
+        window.location.href = '/';
+      }
+    } catch (err) {
+      setError(err.message || 'Error al eliminar la cuenta');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -142,6 +255,7 @@ const ProfileModal = ({ isOpen, onClose }) => {
                 <button 
                   className="edit-btn"
                   onClick={() => setIsEditing(true)}
+                  disabled={loading}
                 >
                   <FaEdit /> Editar
                 </button>
@@ -150,13 +264,16 @@ const ProfileModal = ({ isOpen, onClose }) => {
                   <button 
                     className="save-btn"
                     onClick={handleSave}
+                    disabled={loading}
                   >
-                    <FaSave /> Guardar
+                    <FaSave /> {loading ? 'Guardando...' : 'Guardar'}
                   </button>
                   <button 
                     className="cancel-btn"
                     onClick={() => {
                       setIsEditing(false);
+                      setError('');
+                      setSuccess('');
                       setFormData({
                         nombre: user?.nombre || '',
                         apellido: user?.apellido || '',
@@ -170,6 +287,7 @@ const ProfileModal = ({ isOpen, onClose }) => {
                         }
                       });
                     }}
+                    disabled={loading}
                   >
                     Cancelar
                   </button>
@@ -183,6 +301,27 @@ const ProfileModal = ({ isOpen, onClose }) => {
               </button>
             </div>
           </div>
+
+          {/* Mensajes de error y éxito */}
+          {error && (
+            <motion.div 
+              className="alert alert-error"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <FaExclamationTriangle /> {error}
+            </motion.div>
+          )}
+          
+          {success && (
+            <motion.div 
+              className="alert alert-success"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              ✓ {success}
+            </motion.div>
+          )}
 
           {/* Content */}
           <div className="profile-modal-body">
@@ -397,7 +536,11 @@ const ProfileModal = ({ isOpen, onClose }) => {
                     <h4>Seguridad</h4>
                     <button 
                       className="toggle-password-btn"
-                      onClick={() => setShowPasswordChange(!showPasswordChange)}
+                      onClick={() => {
+                        setShowPasswordChange(!showPasswordChange);
+                        setError('');
+                        setSuccess('');
+                      }}
                     >
                       {showPasswordChange ? <FaEyeSlash /> : <FaEye />}
                       {showPasswordChange ? 'Ocultar' : 'Cambiar Contraseña'}
@@ -450,12 +593,74 @@ const ProfileModal = ({ isOpen, onClose }) => {
                         <button 
                           className="change-password-btn"
                           onClick={handlePasswordChange}
+                          disabled={loading}
                         >
-                          Actualizar Contraseña
+                          {loading ? 'Actualizando...' : 'Actualizar Contraseña'}
                         </button>
                       </motion.div>
                     )}
                   </AnimatePresence>
+                </div>
+
+                {/* Delete Account Section */}
+                <div className="form-section danger-zone">
+                  <h4><FaExclamationTriangle /> Zona de Peligro</h4>
+                  <p className="danger-warning">
+                    Una vez que elimines tu cuenta, no hay vuelta atrás. Por favor, asegúrate.
+                  </p>
+                  
+                  {!showDeleteConfirm ? (
+                    <button 
+                      className="delete-account-btn"
+                      onClick={() => {
+                        setShowDeleteConfirm(true);
+                        setError('');
+                        setSuccess('');
+                      }}
+                    >
+                      <FaTrash /> Eliminar mi cuenta
+                    </button>
+                  ) : (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="delete-confirm-box"
+                    >
+                      <h5>¿Estás seguro de que deseas eliminar tu cuenta?</h5>
+                      <p>Esta acción no se puede deshacer. Todos tus datos serán eliminados permanentemente.</p>
+                      
+                      <div className="form-group">
+                        <label>Confirma tu contraseña</label>
+                        <input
+                          type="password"
+                          value={deletePassword}
+                          onChange={(e) => setDeletePassword(e.target.value)}
+                          placeholder="Ingresa tu contraseña"
+                        />
+                      </div>
+
+                      <div className="delete-actions">
+                        <button 
+                          className="confirm-delete-btn"
+                          onClick={handleDeleteAccount}
+                          disabled={loading}
+                        >
+                          <FaTrash /> {loading ? 'Eliminando...' : 'Sí, eliminar mi cuenta'}
+                        </button>
+                        <button 
+                          className="cancel-delete-btn"
+                          onClick={() => {
+                            setShowDeleteConfirm(false);
+                            setDeletePassword('');
+                            setError('');
+                          }}
+                          disabled={loading}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
               </div>
             </div>

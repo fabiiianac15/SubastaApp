@@ -7,7 +7,6 @@ import {
   FaUser, 
   FaPlus, 
   FaEye, 
-  FaTrophy, 
   FaChartBar, 
   FaCog, 
   FaSignOutAlt, 
@@ -25,17 +24,21 @@ import {
 import { useAuth, useAuthActions } from '../../context/AuthContext';
 import ProfileModal from '../profile/ProfileModal';
 import LoadingTransition from '../common/LoadingTransition';
+import NotificationPanel from '../common/NotificationPanel';
+import notificationService from '../../services/notificationService';
 import './Layout.css';
 
 const Layout = ({ children, currentPage = 'home', onPageChange }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Iniciar colapsado
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [navigationTarget, setNavigationTarget] = useState('');
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const { user } = useAuth();
   const { logout } = useAuthActions();
   const fileInputRef = useRef(null);
@@ -61,20 +64,49 @@ const Layout = ({ children, currentPage = 'home', onPageChange }) => {
     }
   }, [user]);
 
+  // Cargar contador de notificaciones no leídas
+  useEffect(() => {
+    if (user) {
+      cargarContadorNotificaciones();
+      // Actualizar cada 30 segundos
+      const interval = setInterval(cargarContadorNotificaciones, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  const cargarContadorNotificaciones = async () => {
+    try {
+      const res = await notificationService.obtenerContadorNoLeidas();
+      setUnreadCount(res.data?.contador || 0);
+    } catch (error) {
+      console.error('Error cargando contador:', error);
+    }
+  };
+
   const menuItems = [
-    { icon: FaHome, label: 'Dashboard', key: 'dashboard', description: 'Resumen general' },
-    { icon: FaEye, label: 'Ver Subastas', key: 'auctions', description: 'Explorar subastas' },
+    { icon: FaHome, label: 'Inicio', key: 'dashboard', description: 'Resumen general' },
+    { icon: FaEye, label: 'Explorar', key: 'auctions', description: 'Ver todas' },
     ...(user?.tipoUsuario === 'vendedor' ? [{ 
       icon: FaPlus, 
-      label: 'Crear Subasta', 
+      label: 'Crear', 
       key: 'create', 
       description: 'Nueva subasta' 
     }] : []),
-    { icon: FaListAlt, label: 'Mis Subastas', key: 'my-auctions', description: 'Gestionar subastas' },
-    { icon: FaHandHolding, label: 'Mis Pujas', key: 'my-bids', description: 'Historial de pujas' },
-    { icon: FaHeart, label: 'Favoritos', key: 'favorites', description: 'Subastas guardadas' },
-    { icon: FaChartBar, label: 'Estadísticas', key: 'stats', description: 'Análisis y datos' },
-    { icon: FaCog, label: 'Configuración', key: 'settings', description: 'Preferencias' }
+    ...(user?.tipoUsuario === 'vendedor' ? [{ 
+      icon: FaListAlt, 
+      label: 'Mis Subastas', 
+      key: 'my-auctions', 
+      description: 'Administrar' 
+    }] : []),
+    ...(user?.tipoUsuario === 'comprador' ? [{ 
+      icon: FaHandHolding, 
+      label: 'Mis Pujas', 
+      key: 'my-bids', 
+      description: 'Historial' 
+    }] : []),
+    { icon: FaHeart, label: 'Favoritos', key: 'favorites', description: 'Guardados' },
+    { icon: FaChartBar, label: 'Estadísticas', key: 'stats', description: 'Análisis' },
+    { icon: FaCog, label: 'Ajustes', key: 'settings', description: 'Configurar' }
   ];
 
   const handleImageUpload = (event) => {
@@ -92,6 +124,7 @@ const Layout = ({ children, currentPage = 'home', onPageChange }) => {
 
   const handleLogout = () => {
     logout();
+    navigate('/'); // Redirigir al landing page
   };
 
   const handleMenuClick = async (section) => {
@@ -137,6 +170,34 @@ const Layout = ({ children, currentPage = 'home', onPageChange }) => {
     } else {
       setSidebarCollapsed(!sidebarCollapsed);
     }
+  };
+
+  const handleNotificationClick = (notification) => {
+    // Cerrar panel
+    setNotificationPanelOpen(false);
+    
+    // Navegar según el tipo de notificación
+    if (notification.accion) {
+      const { tipo, productoId, ofertaId } = notification.accion;
+      
+      if (tipo === 'ver_subasta' && productoId) {
+        // Navegar a la subasta
+        navigate(`/dashboard/auctions`);
+      } else if (tipo === 'ver_puja' && ofertaId) {
+        // Navegar a mis pujas
+        navigate('/dashboard/my-bids');
+      } else if (tipo === 'pagar' && ofertaId) {
+        // Navegar a mis pujas para pagar
+        navigate('/dashboard/my-bids');
+      }
+    }
+    
+    // Recargar contador
+    cargarContadorNotificaciones();
+  };
+
+  const handleToggleNotifications = () => {
+    setNotificationPanelOpen(!notificationPanelOpen);
   };
 
   return (
@@ -244,9 +305,14 @@ const Layout = ({ children, currentPage = 'home', onPageChange }) => {
           </div>
 
           <div className="navbar-right">
-            <button className="notification-btn">
+            <button 
+              className="notification-btn"
+              onClick={handleToggleNotifications}
+            >
               <FaBell />
-              <span className="notification-badge">3</span>
+              {unreadCount > 0 && (
+                <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+              )}
             </button>
 
             <div className="user-profile-section">
@@ -414,6 +480,14 @@ const Layout = ({ children, currentPage = 'home', onPageChange }) => {
       <ProfileModal 
         isOpen={showProfileModal}
         onClose={() => setShowProfileModal(false)}
+      />
+
+      {/* Notification Panel */}
+      <NotificationPanel
+        open={notificationPanelOpen}
+        onClose={() => setNotificationPanelOpen(false)}
+        onNotificationClick={handleNotificationClick}
+        onCountChange={(c) => setUnreadCount(c)}
       />
     </div>
   );

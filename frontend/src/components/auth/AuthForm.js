@@ -63,8 +63,10 @@ const AuthForm = () => {
     setFieldErrors([]);
     try {
       if (isSignUp) {
+        // REGISTRO: Envía datos completos (nombre, apellido, email, teléfono, contraseña, tipo usuario, dirección)
         await register(formData);
       } else {
+        // LOGIN: Envía solo email y contraseña
         await login({
           email: formData.email,
           password: formData.password

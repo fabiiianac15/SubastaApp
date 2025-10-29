@@ -59,6 +59,8 @@ if (!fs.existsSync(uploadsDir)) {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/bids', require('./routes/bids'));
+app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/notifications', require('./routes/notifications'));
 
 // Middleware para manejar rutas no encontradas
 app.all('*', (req, res) => {

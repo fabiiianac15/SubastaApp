@@ -27,7 +27,7 @@ router.post('/', protect, authorize('vendedor'), crearProducto);
 
 // Rutas públicas con parámetros
 router.get('/:id', obtenerProductoPorId);
-router.put('/:id', protect, authorize('vendedor'), validateProductUpdate, actualizarProducto);
+router.put('/:id', protect, authorize('vendedor'), actualizarProducto);
 router.delete('/:id', protect, authorize('vendedor'), eliminarProducto);
 router.patch('/:id/estado', protect, authorize('vendedor'), validateEstadoChange, cambiarEstadoSubasta);
 

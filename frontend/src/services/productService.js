@@ -7,7 +7,7 @@ const productService = {
       // Forzar el header Authorization manualmente para multipart/form-data
       const token = localStorage.getItem('token');
       if (!token) {
-        throw { message: 'No autorizado: falta el token' };
+        throw new Error('No autorizado: falta el token');
       }
       const response = await API.post('/products', formData, {
         headers: {
@@ -53,7 +53,20 @@ const productService = {
   // Actualizar subasta
   actualizarSubasta: async (id, data) => {
     try {
-      const response = await API.put(`/products/${id}`, data);
+      // Si data es FormData (tiene imágenes), usar headers apropiados
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      };
+
+      // Si es FormData, no establecer Content-Type manualmente
+      if (!(data instanceof FormData)) {
+        config.headers['Content-Type'] = 'application/json';
+      }
+
+      const response = await API.put(`/products/${id}`, data, config);
       return response.data;
     } catch (error) {
       throw error.response?.data || { message: 'Error actualizando la subasta' };
@@ -61,14 +74,18 @@ const productService = {
   },
 
   // Eliminar subasta
-  eliminarSubasta: async (id) => {
+  eliminarSubasta: async (id, forzar = false) => {
     try {
-      const response = await API.delete(`/products/${id}`);
+      const url = forzar ? `/products/${id}?forzar=true` : `/products/${id}`;
+      const response = await API.delete(url);
       return response.data;
     } catch (error) {
       const status = error.response?.status;
       const data = error.response?.data || { message: 'Error eliminando la subasta' };
-      throw { status, ...data };
+      const err = new Error(data.message || 'Error eliminando la subasta');
+      err.status = status;
+      Object.assign(err, data);
+      throw err;
     }
   },
 
@@ -80,7 +97,10 @@ const productService = {
     } catch (error) {
       const status = error.response?.status;
       const data = error.response?.data || { message: 'Error cambiando el estado' };
-      throw { status, ...data };
+      const err = new Error(data.message || 'Error cambiando el estado');
+      err.status = status;
+      Object.assign(err, data);
+      throw err;
     }
   },
 
@@ -121,6 +141,16 @@ const productService = {
       return response.data;
     } catch (error) {
       throw error.response?.data || { message: 'Error retirando la oferta' };
+    }
+  },
+
+  // Pagar oferta ganadora
+  pagarOfertaGanadora: async (bidId, paymentData) => {
+    try {
+      const response = await API.patch(`/bids/${bidId}/pagar`, paymentData);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { message: 'Error procesando el pago' };
     }
   },
 

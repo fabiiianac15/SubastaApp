@@ -3,6 +3,7 @@ import { FaClock, FaTimes, FaChevronLeft, FaChevronRight, FaGavel } from 'react-
 import { motion, AnimatePresence } from 'framer-motion';
 import productService from '../../services/productService';
 import { useAuth } from '../../context/AuthContext';
+import { registrarIntentoSubasta } from '../../services/analyticsService';
 import './AuctionDetailModal.css';
 
 const AuctionDetailModal = ({ open, onClose, auction, onBidSuccess }) => {
@@ -59,16 +60,43 @@ const AuctionDetailModal = ({ open, onClose, auction, onBidSuccess }) => {
     if (Number.isNaN(valor) || valor < minimo) {
       return setError(`La oferta mínima es ${productService.formatearMoneda(minimo)}`);
     }
+    
+    // Crear oferta directamente sin pago (el pago se hace solo si ganas al finalizar)
     try {
       setLoading(true);
-      const res = await productService.crearOferta(auction._id, { monto: valor });
+      const res = await productService.crearOferta(auction._id, { 
+        monto: valor
+      });
+      
       const nueva = res.data;
-      // Actualizar lista local de ofertas (tope)
+      
+      // Registrar intento exitoso en analytics
+      await registrarIntentoSubasta(
+        auction._id,
+        auction.categoria,
+        valor,
+        true,
+        null
+      );
+      
+      // Actualizar lista local de ofertas
       setOfertas(prev => [nueva, ...prev].slice(0, 10));
       setMonto('');
-      onBidSuccess && onBidSuccess(nueva);
+      
+      if (onBidSuccess) {
+        onBidSuccess(nueva);
+      }
     } catch (err) {
       setError(err?.message || 'No se pudo realizar la oferta');
+      
+      // Registrar intento fallido en analytics
+      await registrarIntentoSubasta(
+        auction._id,
+        auction.categoria,
+        valor,
+        false,
+        err?.message || 'Error al crear oferta'
+      );
     } finally {
       setLoading(false);
     }
@@ -137,7 +165,7 @@ const AuctionDetailModal = ({ open, onClose, auction, onBidSuccess }) => {
                     />
                     {error && <div className="adm-error">{error}</div>}
                     <button disabled={loading} className="adm-submit">
-                      {loading ? 'Ofertando...' : 'Hacer oferta'}
+                      {loading ? 'Procesando...' : 'Continuar al Pago'}
                     </button>
                   </form>
                 ) : (

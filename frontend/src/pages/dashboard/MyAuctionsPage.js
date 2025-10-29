@@ -18,6 +18,7 @@ import {
 import Layout from '../../components/layout/Layout';
 import productService from '../../services/productService';
 import CreateAuctionModal from '../../components/auctions/CreateAuctionModal';
+import { iniciarSeccion, finalizarSeccion, registrarClick } from '../../services/analyticsService';
 import Swal from 'sweetalert2';
 import './MyAuctionsPage.css';
 
@@ -31,6 +32,14 @@ const MyAuctionsPage = () => {
   });
   const [editingAuction, setEditingAuction] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // 🔥 TRACKING: Iniciar sección
+  useEffect(() => {
+    iniciarSeccion('my-auctions');
+    return () => {
+      finalizarSeccion();
+    };
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -52,6 +61,9 @@ const MyAuctionsPage = () => {
 
   const handleStatusChange = async (auctionId, newStatus) => {
     try {
+      // 🔥 TRACKING: Click en cambiar estado
+      registrarClick('boton', `Cambiar Estado: ${newStatus}`, auctionId);
+      
       await productService.cambiarEstadoSubasta(auctionId, newStatus);
       await loadData();
       Swal.fire({
@@ -71,26 +83,97 @@ const MyAuctionsPage = () => {
   };
 
   const handleDelete = async (auction) => {
-    const result = await Swal.fire({
-      title: '¿Eliminar subasta?',
-      text: 'Esta acción no se puede deshacer',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#e53e3e'
-    });
+    // Verificar si hay ofertas
+    if (auction.numeroOfertas > 0) {
+      const confirmResult = await Swal.fire({
+        title: '⚠️ Esta subasta tiene ofertas',
+        html: `
+          <p>Esta subasta tiene <strong>${auction.numeroOfertas} oferta(s)</strong>.</p>
+          <p>Al eliminarla, también se eliminarán todas las ofertas asociadas.</p>
+          <p><strong>¿Estás seguro de que deseas continuar?</strong></p>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar todo',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#e53e3e',
+        cancelButtonColor: '#718096',
+        focusCancel: true
+      });
 
-    if (result.isConfirmed) {
+      if (!confirmResult.isConfirmed) {
+        return;
+      }
+
+      // Segunda confirmación
+      const finalResult = await Swal.fire({
+        title: '¿Estás completamente seguro?',
+        text: 'Esta acción no se puede deshacer',
+        icon: 'error',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar definitivamente',
+        cancelButtonText: 'No, conservar',
+        confirmButtonColor: '#e53e3e'
+      });
+
+      if (!finalResult.isConfirmed) {
+        return;
+      }
+
       try {
-        await productService.eliminarSubasta(auction._id);
+        // 🔥 TRACKING: Click en eliminar con ofertas
+        registrarClick('boton', 'Eliminar Subasta (con ofertas)', auction._id);
+        
+        // Forzar eliminación aunque haya ofertas
+        await productService.eliminarSubasta(auction._id, true);
         await loadData();
-        Swal.fire('Eliminada', 'La subasta fue eliminada', 'success');
+        Swal.fire({
+          title: 'Eliminada',
+          text: 'La subasta y todas sus ofertas fueron eliminadas',
+          icon: 'success',
+          timer: 2000,
+          showConfirmButton: false
+        });
       } catch (error) {
-        const friendly = error?.status === 403
-          ? 'No tienes permiso para eliminar esta subasta. Si ya tiene ofertas, no puedes eliminarla; puedes cancelarla.'
-          : error?.message || 'No se pudo eliminar';
-        Swal.fire('Error', friendly, 'error');
+        Swal.fire({
+          title: 'Error',
+          text: error.message || 'No se pudo eliminar la subasta',
+          icon: 'error'
+        });
+      }
+    } else {
+      // Si no hay ofertas, confirmación simple
+      const result = await Swal.fire({
+        title: '¿Eliminar subasta?',
+        text: 'Esta acción no se puede deshacer',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#e53e3e'
+      });
+
+      if (result.isConfirmed) {
+        try {
+          // 🔥 TRACKING: Click en eliminar sin ofertas
+          registrarClick('boton', 'Eliminar Subasta (sin ofertas)', auction._id);
+          
+          await productService.eliminarSubasta(auction._id);
+          await loadData();
+          Swal.fire({
+            title: 'Eliminada',
+            text: 'La subasta fue eliminada exitosamente',
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+          });
+        } catch (error) {
+          Swal.fire({
+            title: 'Error',
+            text: error.message || 'No se pudo eliminar la subasta',
+            icon: 'error'
+          });
+        }
       }
     }
   };
@@ -101,6 +184,10 @@ const MyAuctionsPage = () => {
     console.log('ID de la subasta:', auction._id);
     console.log('Tipo de ID:', typeof auction._id);
     console.log('Longitud del ID:', auction._id?.length);
+    
+    // 🔥 TRACKING: Click en editar subasta
+    registrarClick('boton', 'Editar Subasta', auction._id);
+    
     setEditingAuction(auction);
   };
 
@@ -270,15 +357,13 @@ const MyAuctionsPage = () => {
               </button>
             ))}
             
-            {(auction.numeroOfertas === 0 || !auction.numeroOfertas) && (
-              <button 
-                className="action-btn delete" 
-                onClick={() => handleDelete(auction)}
-                title="Eliminar"
-              >
-                <FaTrash />
-              </button>
-            )}
+            <button 
+              className="action-btn delete" 
+              onClick={() => handleDelete(auction)}
+              title={auction.numeroOfertas > 0 ? `Eliminar (${auction.numeroOfertas} ofertas)` : "Eliminar"}
+            >
+              <FaTrash />
+            </button>
           </div>
         </div>
       </motion.div>

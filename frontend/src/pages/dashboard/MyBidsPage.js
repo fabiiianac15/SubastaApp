@@ -3,7 +3,8 @@ import Layout from '../../components/layout/Layout';
 import { useAuth } from '../../context/AuthContext';
 import productService from '../../services/productService';
 import AuctionDetailModal from '../../components/auctions/AuctionDetailModal';
-import { FaFilter, FaSearch, FaTrophy, FaClock, FaArrowLeft, FaExternalLinkAlt, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
+import PaymentModal from '../../components/payment/PaymentModal';
+import { FaFilter, FaSearch, FaTrophy, FaClock, FaArrowLeft, FaExternalLinkAlt, FaCheckCircle, FaTimesCircle, FaCreditCard } from 'react-icons/fa';
 import './MyBidsPage.css';
 
 const estados = [
@@ -26,7 +27,8 @@ const MyBidsPage = () => {
   const [pagination, setPagination] = useState(null);
   const [estadisticas, setEstadisticas] = useState([]);
   const [selectedAuction, setSelectedAuction] = useState(null);
-  const [loadingProduct, setLoadingProduct] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedWonBid, setSelectedWonBid] = useState(null);
 
   const statsMap = useMemo(() => {
     const map = { activa: 0, superada: 0, ganadora: 0, retirada: 0 };
@@ -60,13 +62,10 @@ const MyBidsPage = () => {
 
   const openProduct = async (productoId) => {
     try {
-      setLoadingProduct(true);
       const res = await productService.obtenerSubastaPorId(productoId);
       setSelectedAuction(res.data);
     } catch (_) {
       // ignore
-    } finally {
-      setLoadingProduct(false);
     }
   };
 
@@ -77,6 +76,35 @@ const MyBidsPage = () => {
     } catch (err) {
       alert(err?.message || 'No se pudo retirar la oferta');
     }
+  };
+
+  const handlePayNow = (bid) => {
+    setSelectedWonBid(bid);
+    setShowPaymentModal(true);
+  };
+
+  const handlePaymentComplete = async (paymentData) => {
+    try {
+      // Actualizar la oferta con la información del pago
+      await productService.pagarOfertaGanadora(selectedWonBid._id, {
+        metodoPago: paymentData.metodo,
+        transaccionId: paymentData.transaccionId
+      });
+      
+      // Mostrar mensaje de agradecimiento
+      alert('¡Gracias por tu compra! Tu pago ha sido procesado exitosamente. El vendedor se pondrá en contacto contigo pronto.');
+      
+      setShowPaymentModal(false);
+      setSelectedWonBid(null);
+      await cargar(); // Recargar las pujas
+    } catch (err) {
+      alert(err?.message || 'No se pudo procesar el pago');
+    }
+  };
+
+  const handlePaymentCancel = () => {
+    setShowPaymentModal(false);
+    setSelectedWonBid(null);
   };
 
   if (user?.tipoUsuario !== 'comprador') {
@@ -153,17 +181,20 @@ const MyBidsPage = () => {
             {bids.map(of => {
               const p = of.producto || {};
               const winning = (p.precioActual || 0) === (of.monto || 0);
+              const isWinner = of.estado === 'ganadora';
               const img = p.imagenes?.[0]?.url;
               const STATIC_BASE = (process.env.REACT_APP_API_URL && process.env.REACT_APP_API_URL.replace('/api','')) || 'http://localhost:5000';
               return (
-                <div key={of._id} className={`mbp-card ${winning ? 'winning' : ''}`}>
+                <div key={of._id} className={`mbp-card ${winning ? 'winning' : ''} ${isWinner ? 'winner' : ''}`}>
                   <div className="mbp-cover" onClick={()=> openProduct(p._id)}>
                     {img ? (
                       <img src={img.startsWith('http') ? img : `${STATIC_BASE}${img}`} alt={p.titulo} onError={(e)=>{ e.currentTarget.src='/logo512.png'; }} />
                     ) : (
                       <div className="mbp-placeholder"><FaTrophy/></div>
                     )}
-                    {winning && <div className="mbp-badge">¡Vas ganando!</div>}
+                    {winning && of.estado === 'activa' && <div className="mbp-badge">¡Vas ganando!</div>}
+                    {isWinner && !of.pagado && <div className="mbp-badge winner-badge">🏆 ¡GANASTE!</div>}
+                    {isWinner && of.pagado && <div className="mbp-badge paid-badge">✅ Pagado</div>}
                   </div>
                   <div className="mbp-info">
                     <h4 title={p.titulo}>{p.titulo || 'Subasta'}</h4>
@@ -185,7 +216,20 @@ const MyBidsPage = () => {
                       {of.estado === 'activa' && !winning && (
                         <button className="warn" onClick={()=> retirarOferta(of._id)}>Retirar oferta</button>
                       )}
+                      {of.estado === 'ganadora' && !of.pagado && (
+                        <button className="pay-btn" onClick={()=> handlePayNow(of)}>
+                          <FaCreditCard/> Pagar ahora
+                        </button>
+                      )}
+                      {of.estado === 'ganadora' && of.pagado && (
+                        <div className="purchased-badge"><FaCheckCircle/> Comprado</div>
+                      )}
                     </div>
+                    {of.estado === 'ganadora' && of.pagado && (
+                      <div className="mbp-thanks">
+                        ✨ ¡Gracias por tu compra! El vendedor se pondrá en contacto contigo pronto.
+                      </div>
+                    )}
                     {of.mensaje && <div className="mbp-msg">{of.mensaje}</div>}
                   </div>
                 </div>
@@ -208,6 +252,15 @@ const MyBidsPage = () => {
         auction={selectedAuction}
         onClose={()=> setSelectedAuction(null)}
         onBidSuccess={() => cargar()}
+      />
+
+      <PaymentModal
+        open={showPaymentModal}
+        onClose={handlePaymentCancel}
+        monto={selectedWonBid?.monto || 0}
+        auction={selectedWonBid?.producto}
+        onPaymentComplete={handlePaymentComplete}
+        onPaymentCancel={handlePaymentCancel}
       />
     </Layout>
   );

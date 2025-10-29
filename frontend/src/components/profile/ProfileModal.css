@@ -14,7 +14,7 @@
 }
 
 .profile-modal-content {
-  background: white;
+  background: rgba(15, 20, 25, 0.95);
   border-radius: 20px;
   width: 90%;
   max-width: 1000px;
@@ -124,7 +124,7 @@
 
 /* ===== LEFT COLUMN - PROFILE INFO ===== */
 .profile-info {
-  background: #f8fafc;
+  background: rgba(15, 20, 25, 0.6);
   padding: 2rem;
   display: flex;
   flex-direction: column;
@@ -259,7 +259,7 @@
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: white;
+  background: rgba(15, 20, 25, 0.95);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
@@ -364,7 +364,7 @@
   border-radius: 10px;
   font-size: 0.95rem;
   transition: all 0.3s ease;
-  background: #f8fafc;
+  background: rgba(15, 20, 25, 0.6);
   box-sizing: border-box;
 }
 
@@ -376,13 +376,13 @@
 .form-group select:focus {
   outline: none;
   border-color: #667eea;
-  background: white;
+  background: rgba(15, 20, 25, 0.95);
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .form-group input:disabled,
 .form-group select:disabled {
-  background: #f7fafc;
+  background: rgba(15, 20, 25, 0.6);
   color: #4a5568;
   cursor: not-allowed;
 }
@@ -410,7 +410,7 @@
 }
 
 .toggle-password-btn:hover {
-  background: #f7fafc;
+  background: rgba(15, 20, 25, 0.6);
   border-color: #667eea;
 }
 
@@ -579,7 +579,7 @@
 
 .profile-modal-body::-webkit-scrollbar-track,
 .profile-form::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: rgba(20, 25, 30, 0.6);
   border-radius: 3px;
 }
 
@@ -592,4 +592,166 @@
 .profile-modal-body::-webkit-scrollbar-thumb:hover,
 .profile-form::-webkit-scrollbar-thumb:hover {
   background: #a0aec0;
+}
+
+/* ===== ALERTS ===== */
+.alert {
+  padding: 1rem 1.5rem;
+  margin: 1rem 2rem 0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 500;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.alert-error {
+  background: rgba(30, 20, 20, 0.5);
+  color: #c53030;
+  border-left: 4px solid #fc8181;
+}
+
+.alert-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #276749;
+  border-left: 4px solid #68d391;
+}
+
+/* ===== DANGER ZONE ===== */
+.danger-zone {
+  background: rgba(30, 20, 20, 0.5);
+  border: 2px solid #fc8181;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+
+.danger-zone h4 {
+  color: #c53030;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.danger-warning {
+  color: #742a2a;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.delete-account-btn {
+  background: #c53030;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.delete-account-btn:hover {
+  background: #9b2c2c;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(197, 48, 48, 0.3);
+}
+
+.delete-confirm-box {
+  background: rgba(15, 20, 25, 0.95);
+  padding: 1.5rem;
+  border-radius: 10px;
+  margin-top: 1rem;
+}
+
+.delete-confirm-box h5 {
+  color: #c53030;
+  margin-bottom: 0.75rem;
+  font-size: 1.1rem;
+}
+
+.delete-confirm-box p {
+  color: #4a5568;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.delete-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.confirm-delete-btn {
+  background: #c53030;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.confirm-delete-btn:hover:not(:disabled) {
+  background: #9b2c2c;
+  transform: translateY(-1px);
+}
+
+.confirm-delete-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cancel-delete-btn {
+  background: #e2e8f0;
+  color: #2d3748;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  flex: 1;
+  transition: all 0.3s ease;
+}
+
+.cancel-delete-btn:hover:not(:disabled) {
+  background: #cbd5e0;
+}
+
+.cancel-delete-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== BUTTON LOADING STATES ===== */
+.save-btn:disabled,
+.edit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.change-password-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

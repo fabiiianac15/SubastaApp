@@ -1,7 +1,8 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
+import LandingPage from './pages/landing/LandingPage';
 import AuthPage from './pages/auth/AuthPage';
 import WelcomePage from './pages/dashboard/WelcomePage';
 import AuctionsPage from './pages/dashboard/AuctionsPage';
@@ -11,6 +12,8 @@ import MyBidsPage from './pages/dashboard/MyBidsPage';
 import FavoritesPage from './pages/dashboard/FavoritesPage';
 import StatsPage from './pages/dashboard/StatsPage';
 import SettingsPage from './pages/dashboard/SettingsPage';
+import RecommendationsPage from './pages/dashboard/RecommendationsPage';
+import AnalyticsStatsPage from './pages/dashboard/AnalyticsStatsPage';
 import './App.css';
 
 function App() {
@@ -19,8 +22,8 @@ function App() {
       <Router>
         <div className="App">
           <Routes>
-            {/* Ruta por defecto - redirige a auth */}
-            <Route path="/" element={<Navigate to="/auth" replace />} />
+            {/* Ruta principal - Landing Page */}
+            <Route path="/" element={<LandingPage />} />
             
             {/* Ruta de autenticación */}
             <Route path="/auth" element={<AuthPage />} />
@@ -90,6 +93,22 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/dashboard/recommendations" 
+              element={
+                <ProtectedRoute>
+                  <RecommendationsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/dashboard/analytics-stats" 
+              element={
+                <ProtectedRoute>
+                  <AnalyticsStatsPage />
+                </ProtectedRoute>
+              } 
+            />
             
             {/* Ruta para usuarios no autorizados */}
             <Route 
@@ -100,7 +119,7 @@ function App() {
                   justifyContent: 'center', 
                   alignItems: 'center', 
                   height: '100vh',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  background: 'linear-gradient(135deg, #0a0b0f 0%, #0f1419 50%, #0a1410 100%)',
                   color: 'white',
                   textAlign: 'center',
                   flexDirection: 'column',
@@ -111,14 +130,18 @@ function App() {
                   <button 
                     onClick={() => window.history.back()}
                     style={{
-                      background: 'white',
-                      color: '#667eea',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      color: 'white',
                       border: 'none',
                       padding: '12px 24px',
                       borderRadius: '8px',
                       cursor: 'pointer',
-                      fontWeight: '600'
+                      fontWeight: '600',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                      transition: 'all 0.3s ease'
                     }}
+                    onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
+                    onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
                   >
                     Volver
                   </button>
@@ -135,7 +158,7 @@ function App() {
                   justifyContent: 'center', 
                   alignItems: 'center', 
                   height: '100vh',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  background: 'linear-gradient(135deg, #0a0b0f 0%, #0f1419 50%, #0a1410 100%)',
                   color: 'white',
                   textAlign: 'center',
                   flexDirection: 'column',
@@ -144,18 +167,22 @@ function App() {
                   <h1>404 - Página No Encontrada</h1>
                   <p>La página que buscas no existe</p>
                   <button 
-                    onClick={() => window.location.href = '/dashboard'}
+                    onClick={() => window.location.href = '/'}
                     style={{
-                      background: 'white',
-                      color: '#667eea',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      color: 'white',
                       border: 'none',
                       padding: '12px 24px',
                       borderRadius: '8px',
                       cursor: 'pointer',
-                      fontWeight: '600'
+                      fontWeight: '600',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                      transition: 'all 0.3s ease'
                     }}
+                    onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
+                    onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
                   >
-                    Ir al Dashboard
+                    Ir al Inicio
                   </button>
                 </div>
               } 

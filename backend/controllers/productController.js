@@ -1,6 +1,7 @@
 const { validationResult } = require('express-validator');
 const Product = require('../models/Product');
 const Bid = require('../models/Bid');
+const Notification = require('../models/Notification');
 const multer = require('multer');
 const path = require('path');
 
@@ -35,9 +36,8 @@ const upload = multer({
   }
 }).array('imagenes', 5); // Máximo 5 imágenes
 
-// @desc    Crear nueva subasta
-// @route   POST /api/products
-// @access  Private (Solo vendedores)
+// crea la una nueva subasta con imágenes, valida fechas y precios
+
 const crearProducto = async (req, res) => {
   try {
     // Primero ejecutar multer para procesar multipart/form-data
@@ -148,9 +148,8 @@ const crearProducto = async (req, res) => {
   }
 };
 
-// @desc    Obtener todas las subastas
-// @route   GET /api/products
-// @access  Public
+// Obtener todas las subastas
+
 const obtenerProductos = async (req, res) => {
   try {
     const {
@@ -237,9 +236,8 @@ const obtenerProductos = async (req, res) => {
   }
 };
 
-// @desc    Obtener subasta por ID
-// @route   GET /api/products/:id
-// @access  Public
+// Obtener subasta por ID
+
 const obtenerProductoPorId = async (req, res) => {
   try {
     const producto = await Product.findById(req.params.id)
@@ -289,57 +287,114 @@ const obtenerProductoPorId = async (req, res) => {
   }
 };
 
-// @desc    Actualizar subasta
-// @route   PUT /api/products/:id
-// @access  Private (Solo el vendedor)
+// Actualizar subasta
+
 const actualizarProducto = async (req, res) => {
+  console.log('=== ACTUALIZAR PRODUCTO LLAMADO ===');
+  console.log('ID:', req.params.id);
+  console.log('Method:', req.method);
+  console.log('Body:', req.body);
+  console.log('Files:', req.files);
+  
   try {
-    const producto = await Product.findById(req.params.id);
-
-    if (!producto) {
-      return res.status(404).json({
-        success: false,
-        message: 'Subasta no encontrada'
-      });
-    }
-
-    // Verificar que sea el vendedor (soporta vendedor poblado u ObjectId)
-    const vendedorId = producto.vendedor && producto.vendedor._id ? producto.vendedor._id : producto.vendedor;
-    if (String(vendedorId) !== String(req.user._id)) {
-      return res.status(403).json({
-        success: false,
-        message: 'No tienes permisos para editar esta subasta'
-      });
-    }
-
-    // No permitir edición si ya hay ofertas (excepto ciertos campos)
-    if (producto.numeroOfertas > 0) {
-      const camposPermitidos = ['descripcion', 'condiciones', 'fechaFin'];
-      const camposEnviados = Object.keys(req.body);
-      const camposNoPermitidos = camposEnviados.filter(campo => !camposPermitidos.includes(campo));
-      
-      if (camposNoPermitidos.length > 0) {
+    // Primero ejecutar multer para procesar multipart/form-data si hay imágenes nuevas
+    upload(req, res, async function(err) {
+      if (err) {
+        console.log('Error en multer:', err);
         return res.status(400).json({
           success: false,
-          message: 'No puedes modificar estos campos cuando ya hay ofertas',
-          camposNoPermitidos
+          message: err.message
         });
       }
-    }
 
-    const productoActualizado = await Product.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
+      try {
+        const producto = await Product.findById(req.params.id);
 
-    res.json({
-      success: true,
-      message: 'Subasta actualizada exitosamente',
-      data: productoActualizado
+        if (!producto) {
+          return res.status(404).json({
+            success: false,
+            message: 'Subasta no encontrada'
+          });
+        }
+
+        // Verificar que sea el vendedor (soporta vendedor poblado u ObjectId)
+        const vendedorId = producto.vendedor && producto.vendedor._id ? producto.vendedor._id : producto.vendedor;
+        if (String(vendedorId) !== String(req.user._id)) {
+          return res.status(403).json({
+            success: false,
+            message: 'No tienes permisos para editar esta subasta'
+          });
+        }
+
+        // Preparar datos para actualizar
+        const datosActualizar = {};
+
+        // Campos que siempre se pueden actualizar
+        const camposEditables = ['titulo', 'descripcion', 'condiciones', 'tags'];
+        
+        // Si NO hay ofertas, permitir editar más campos
+        if (producto.numeroOfertas === 0) {
+          camposEditables.push('categoria', 'precioInicial', 'porcentajeMinimo', 'fechaInicio', 'fechaFin', 'tipoSubasta');
+        }
+
+        // Actualizar solo los campos permitidos que vengan en el body
+        camposEditables.forEach(campo => {
+          if (req.body[campo] !== undefined) {
+            producto[campo] = req.body[campo];
+          }
+        });
+
+        // Procesar tags si vienen como string
+        if (req.body.tags && typeof req.body.tags === 'string') {
+          producto.tags = req.body.tags.split(',').map(tag => tag.trim()).filter(Boolean);
+        }
+
+        // Si se actualizó el precio inicial o porcentaje, recalcular incremento
+        if (req.body.precioInicial || req.body.porcentajeMinimo) {
+          producto.incrementoMinimo = Math.ceil(Number(producto.precioInicial) * (Number(producto.porcentajeMinimo) / 100));
+        }
+
+        // Procesar nuevas imágenes si se subieron
+        if (req.files && req.files.length > 0) {
+          const nuevasImagenes = req.files.map((file, index) => ({
+            url: `/uploads/products/${file.filename}`,
+            alt: `${producto.titulo} - imagen ${producto.imagenes.length + index + 1}`,
+            esPortada: index === 0 && producto.imagenes.length === 0
+          }));
+          
+          // Agregar las nuevas imágenes a las existentes
+          producto.imagenes = [...producto.imagenes, ...nuevasImagenes];
+        }
+
+        // Guardar el producto actualizado
+        const productoActualizado = await producto.save();
+
+        res.json({
+          success: true,
+          message: 'Subasta actualizada exitosamente',
+          data: productoActualizado
+        });
+      } catch (error) {
+        console.error('Error actualizando producto:', error);
+        
+        // Manejar errores de validación de manera más clara
+        if (error.name === 'ValidationError') {
+          const mensajes = Object.values(error.errors).map(err => err.message);
+          return res.status(400).json({
+            success: false,
+            message: mensajes.join('. ')
+          });
+        }
+        
+        res.status(500).json({
+          success: false,
+          message: 'Error del servidor',
+          error: error.message
+        });
+      }
     });
   } catch (error) {
-    console.error('Error actualizando producto:', error);
+    console.error('Error en actualizarProducto:', error);
     res.status(500).json({
       success: false,
       message: 'Error del servidor'
@@ -347,9 +402,8 @@ const actualizarProducto = async (req, res) => {
   }
 };
 
-// @desc    Eliminar subasta
-// @route   DELETE /api/products/:id
-// @access  Private (Solo el vendedor)
+// Eliminar subasta
+
 const eliminarProducto = async (req, res) => {
   try {
     const producto = await Product.findById(req.params.id);
@@ -370,19 +424,30 @@ const eliminarProducto = async (req, res) => {
       });
     }
 
-    // No permitir eliminación si ya hay ofertas
-    if (producto.numeroOfertas > 0) {
+    // Opcional: Permitir forzar eliminación aunque haya ofertas
+    const { forzar } = req.query;
+    
+    if (producto.numeroOfertas > 0 && !forzar) {
       return res.status(400).json({
         success: false,
-        message: 'No puedes eliminar una subasta que ya tiene ofertas. Puedes cancelarla en su lugar.'
+        message: 'Esta subasta tiene ofertas. ¿Estás seguro de que quieres eliminarla? Esto eliminará también todas las ofertas asociadas.',
+        confirmarRequerido: true,
+        numeroOfertas: producto.numeroOfertas
       });
     }
 
+    // Eliminar todas las pujas asociadas a este producto
+    const pujasEliminadas = await Bid.deleteMany({ producto: req.params.id });
+
+    // Eliminar el producto
     await Product.findByIdAndDelete(req.params.id);
 
     res.json({
       success: true,
-      message: 'Subasta eliminada exitosamente'
+      message: 'Subasta eliminada exitosamente',
+      detalles: {
+        pujasEliminadas: pujasEliminadas.deletedCount
+      }
     });
   } catch (error) {
     console.error('Error eliminando producto:', error);
@@ -393,9 +458,8 @@ const eliminarProducto = async (req, res) => {
   }
 };
 
-// @desc    Obtener subastas del vendedor
-// @route   GET /api/products/mis-subastas
-// @access  Private (Solo vendedores)
+// Obtener subastas del vendedor
+
 const obtenerMisSubastas = async (req, res) => {
   try {
     const {
@@ -453,9 +517,8 @@ const obtenerMisSubastas = async (req, res) => {
   }
 };
 
-// @desc    Cambiar estado de subasta
-// @route   PATCH /api/products/:id/estado
-// @access  Private (Solo el vendedor)
+// Cambiar estado de subasta
+
 const cambiarEstadoSubasta = async (req, res) => {
   try {
     const { estado } = req.body;
@@ -491,6 +554,32 @@ const cambiarEstadoSubasta = async (req, res) => {
         success: false,
         message: `No se puede cambiar de ${producto.estado} a ${estado}`
       });
+    }
+
+    // Si se está finalizando la subasta, marcar al ganador
+    if (estado === 'finalizado' && producto.estado === 'activo') {
+      // Buscar la oferta más alta
+      const ofertaGanadora = await Bid.findOne({ 
+        producto: producto._id, 
+        estado: 'activa' 
+      })
+      .sort({ monto: -1 })
+      .populate('postor', 'nombre apellido');
+
+      if (ofertaGanadora) {
+        // Marcar como ganadora
+        ofertaGanadora.estado = 'ganadora';
+        await ofertaGanadora.save();
+
+        // Crear notificación para el ganador
+        await Notification.notificarPujaGanadora(
+          ofertaGanadora.postor._id,
+          producto,
+          ofertaGanadora.monto
+        );
+
+        console.log(`✅ Oferta ganadora marcada para ${ofertaGanadora.postor.nombre} con monto ${ofertaGanadora.monto}`);
+      }
     }
 
     producto.estado = estado;

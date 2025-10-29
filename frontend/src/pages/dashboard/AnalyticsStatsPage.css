@@ -1,0 +1,468 @@
+.analytics-stats-page {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.stats-header {
+  text-align: center;
+  margin-bottom: 3rem;
+  padding: 2.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px;
+  color: white;
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+}
+
+.header-icon {
+  font-size: 3.5rem;
+  margin-bottom: 1rem;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+.stats-header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+
+.stats-header p {
+  font-size: 1.2rem;
+  opacity: 0.95;
+}
+
+/* Loading y No Stats */
+.loading-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 1.5rem;
+}
+
+.spinner {
+  width: 60px;
+  height: 60px;
+  border: 5px solid #e2e8f0;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-stats p {
+  font-size: 1.2rem;
+  color: #718096;
+}
+
+.no-stats {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: rgba(15, 20, 25, 0.8);
+  border-radius: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.no-stats-icon {
+  font-size: 5rem;
+  color: #cbd5e0;
+  margin-bottom: 1.5rem;
+}
+
+.no-stats h2 {
+  font-size: 2rem;
+  color: #2d3748;
+  margin-bottom: 1rem;
+}
+
+.no-stats p {
+  font-size: 1.1rem;
+  color: #718096;
+}
+
+/* Stats Overview */
+.stats-overview {
+  background: rgba(15, 20, 25, 0.8);
+  border-radius: 20px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.stats-overview h2 {
+  font-size: 1.8rem;
+  color: #2d3748;
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.overview-card {
+  background: linear-gradient(135deg, rgba(15, 20, 25, 0.8) 0%, rgba(10, 14, 16, 0.8) 100%);
+  border-radius: 15px;
+  padding: 1.5rem;
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  border: 2px solid #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.overview-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.card-icon {
+  width: 70px;
+  height: 70px;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  color: white;
+}
+
+.card-icon.sessions {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.card-icon.clicks {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.card-icon.products {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.card-icon.searches {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.card-content h3 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin-bottom: 0.25rem;
+}
+
+.card-content p {
+  font-size: 1rem;
+  color: #718096;
+  margin-bottom: 0.5rem;
+}
+
+.card-detail {
+  font-size: 0.85rem;
+  color: #a0aec0;
+}
+
+/* Bids Stats */
+.bids-stats {
+  background: rgba(15, 20, 25, 0.8);
+  border-radius: 20px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.bids-stats h2 {
+  font-size: 1.8rem;
+  color: #2d3748;
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.bids-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.bid-stat-card {
+  background: linear-gradient(135deg, rgba(15, 20, 25, 0.8) 0%, rgba(10, 14, 16, 0.8) 100%);
+  border-radius: 15px;
+  padding: 2rem;
+  text-align: center;
+  border: 2px solid #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.bid-stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.bid-stat-card svg {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.bid-stat-card.total {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.bid-stat-card.success {
+  border-color: #38a169;
+  color: #38a169;
+}
+
+.bid-stat-card.failed {
+  border-color: #e53e3e;
+  color: #e53e3e;
+}
+
+.bid-stat-card.rate {
+  border-color: #f6ad55;
+  color: #f6ad55;
+}
+
+.stat-number {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.bid-stat-card p {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+/* Stats Details Grid */
+.stats-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.stats-detail-card {
+  background: rgba(15, 20, 25, 0.8);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.stats-detail-card h3 {
+  font-size: 1.5rem;
+  color: #2d3748;
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.categories-list,
+.sections-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.category-item,
+.section-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.category-rank,
+.section-rank {
+  width: 35px;
+  height: 35px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.category-info,
+.section-info {
+  flex: 1;
+}
+
+.category-name,
+.section-name {
+  display: block;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 0.5rem;
+}
+
+.category-bar,
+.section-bar {
+  height: 8px;
+  background: rgba(20, 25, 30, 0.5);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.category-bar-fill,
+.section-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  border-radius: 10px;
+  transition: width 0.5s ease;
+}
+
+.category-count,
+.section-time {
+  font-size: 0.9rem;
+  color: #718096;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.no-data {
+  text-align: center;
+  padding: 2rem;
+  color: #a0aec0;
+  font-style: italic;
+}
+
+/* Insights Section */
+.insights-section {
+  background: rgba(15, 20, 25, 0.8);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.insights-section h2 {
+  font-size: 1.8rem;
+  color: #2d3748;
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+}
+
+.insights-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.insight-card {
+  background: linear-gradient(135deg, rgba(15, 20, 25, 0.8) 0%, rgba(10, 14, 16, 0.8) 100%);
+  border-radius: 15px;
+  padding: 2rem;
+  border: 2px solid #e2e8f0;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.insight-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.insight-icon {
+  font-size: 3rem;
+  color: #667eea;
+  margin-bottom: 1rem;
+}
+
+.insight-card h4 {
+  font-size: 1.2rem;
+  color: #4a5568;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.insight-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin-bottom: 0.75rem;
+}
+
+.insight-description {
+  font-size: 0.95rem;
+  color: #718096;
+  line-height: 1.5;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .stats-details-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .analytics-stats-page {
+    padding: 1rem;
+  }
+
+  .stats-header {
+    padding: 2rem 1rem;
+  }
+
+  .stats-header h1 {
+    font-size: 2rem;
+  }
+
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .bids-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stats-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .insights-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .category-item,
+  .section-item {
+    flex-wrap: wrap;
+  }
+
+  .card-content h3 {
+    font-size: 2rem;
+  }
+
+  .stat-number {
+    font-size: 2.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .bids-grid {
+    grid-template-columns: 1fr;
+  }
+}

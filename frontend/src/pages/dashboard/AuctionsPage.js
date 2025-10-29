@@ -18,6 +18,14 @@ import {
 import Layout from '../../components/layout/Layout';
 import productService from '../../services/productService';
 import { useAuth } from '../../context/AuthContext';
+import { 
+  iniciarSeccion, 
+  finalizarSeccion, 
+  registrarClick, 
+  registrarVistaCategoria, 
+  registrarBusqueda,
+  registrarProductoVisto 
+} from '../../services/analyticsService';
 import './AuctionsPage.css';
 
 const AuctionsPage = () => {
@@ -44,6 +52,14 @@ const AuctionsPage = () => {
       setFavorites(new Set(JSON.parse(savedFavorites)));
     }
   }, [user]);
+
+  // 🔥 TRACKING: Iniciar sección
+  useEffect(() => {
+    iniciarSeccion('auctions');
+    return () => {
+      finalizarSeccion();
+    };
+  }, []);
 
   // Load auctions
   useEffect(() => {
@@ -72,8 +88,12 @@ const AuctionsPage = () => {
     const newFavorites = new Set(favorites);
     if (newFavorites.has(auctionId)) {
       newFavorites.delete(auctionId);
+      // 🔥 TRACKING: Click en remover de favoritos
+      registrarClick('boton', 'Remover de Favoritos', auctionId);
     } else {
       newFavorites.add(auctionId);
+      // 🔥 TRACKING: Click en agregar a favoritos
+      registrarClick('boton', 'Agregar a Favoritos', auctionId);
     }
     setFavorites(newFavorites);
     localStorage.setItem(`favorites_${user._id}`, JSON.stringify([...newFavorites]));
@@ -82,11 +102,29 @@ const AuctionsPage = () => {
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
     setCurrentPage(1);
+    
+    // 🔥 TRACKING: Registrar clicks en filtros
+    if (key === 'categoria' && value !== 'todas') {
+      registrarClick('categoria', value);
+      registrarVistaCategoria(value);
+    } else if (key === 'busqueda' && value.length > 2) {
+      // Registrar búsqueda después de 1 segundo (debounce)
+      clearTimeout(window.searchTimeout);
+      window.searchTimeout = setTimeout(() => {
+        registrarBusqueda(value, filters.categoria !== 'todas' ? filters.categoria : null, auctions.length);
+      }, 1000);
+    }
   };
 
   const AuctionCard = ({ auction, isFavorite, onToggleFavorite }) => {
     const STATIC_BASE = (process.env.REACT_APP_API_URL?.replace('/api','')) || 'http://localhost:5000';
     const timeRemaining = productService.calcularTiempoRestante(auction.fechaFin);
+    
+    // 🔥 TRACKING: Registrar cuando el usuario ve este producto
+    const handleViewDetails = () => {
+      registrarClick('producto', auction.titulo, auction._id);
+      registrarProductoVisto(auction._id, auction.categoria, 0);
+    };
     
     return (
       <motion.div
@@ -149,7 +187,7 @@ const AuctionsPage = () => {
             </div>
           </div>
           
-          <button className="view-auction-btn">
+          <button className="view-auction-btn" onClick={handleViewDetails}>
             <FaEye />
             Ver Detalles
           </button>
@@ -170,13 +208,21 @@ const AuctionsPage = () => {
           <div className="view-controls">
             <button 
               className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
-              onClick={() => setViewMode('grid')}
+              onClick={() => {
+                setViewMode('grid');
+                // 🔥 TRACKING: Click en cambiar vista
+                registrarClick('boton', 'Vista en Cuadrícula', null);
+              }}
             >
               <FaTh />
             </button>
             <button 
               className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
-              onClick={() => setViewMode('list')}
+              onClick={() => {
+                setViewMode('list');
+                // 🔥 TRACKING: Click en cambiar vista
+                registrarClick('boton', 'Vista en Lista', null);
+              }}
             >
               <FaList />
             </button>
@@ -253,7 +299,11 @@ const AuctionsPage = () => {
                 <div className="pagination">
                   <button 
                     disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(currentPage - 1)}
+                    onClick={() => {
+                      setCurrentPage(currentPage - 1);
+                      // 🔥 TRACKING: Click en paginación
+                      registrarClick('boton', 'Página Anterior', null);
+                    }}
                   >
                     <FaChevronLeft />
                   </button>
@@ -272,7 +322,11 @@ const AuctionsPage = () => {
                           )}
                           <button
                             className={currentPage === page ? 'active' : ''}
-                            onClick={() => setCurrentPage(page)}
+                            onClick={() => {
+                              setCurrentPage(page);
+                              // 🔥 TRACKING: Click en número de página
+                              registrarClick('boton', `Página ${page}`, null);
+                            }}
                           >
                             {page}
                           </button>
@@ -283,7 +337,11 @@ const AuctionsPage = () => {
                   
                   <button 
                     disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(currentPage + 1)}
+                    onClick={() => {
+                      setCurrentPage(currentPage + 1);
+                      // 🔥 TRACKING: Click en paginación
+                      registrarClick('boton', 'Página Siguiente', null);
+                    }}
                   >
                     <FaChevronRight />
                   </button>

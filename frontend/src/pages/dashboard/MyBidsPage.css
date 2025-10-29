@@ -3,28 +3,37 @@
 .mbp-back{background:#edf2f7;border:1px solid #cbd5e0;color:#2d3748;padding:8px 12px;border-radius:8px;display:inline-flex;align-items:center;gap:8px;cursor:pointer}
 .mbp-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}
 .mbp-stat{display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#f8fafc,#edf2f7);border:1px solid #e2e8f0;border-radius:12px;padding:12px}
-.mbp-filters{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;margin-bottom:16px}
+.mbp-filters{display:flex;justify-content:space-between;align-items:center;gap:12px;background:rgba(15,20,25,0.9);border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;margin-bottom:16px}
 .mbp-filter-group{display:flex;align-items:center;gap:10px}
 .mbp-filter-group select{padding:8px;border:1px solid #cbd5e0;border-radius:8px}
 .mbp-search{display:flex;align-items:center;gap:8px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px}
 .mbp-search input{border:none;outline:none;background:transparent}
 .mbp-error{color:#c53030;background:#fed7d7;border:1px solid #feb2b2;border-radius:10px;padding:10px;margin-bottom:10px}
-.mbp-loading,.mbp-empty{text-align:center;color:#718096;background:#fff;border:1px dashed #e2e8f0;border-radius:12px;padding:20px}
+.mbp-loading,.mbp-empty{text-align:center;color:#718096;background:rgba(15,20,25,0.9);border:1px dashed #e2e8f0;border-radius:12px;padding:20px}
 .mbp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,320px));gap:16px;justify-content:center}
-.mbp-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 8px 20px rgba(0,0,0,.05);display:flex;flex-direction:column;max-width:320px}
+.mbp-card{background:rgba(15,20,25,0.9);border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 8px 20px rgba(0,0,0,.05);display:flex;flex-direction:column;max-width:320px}
 .mbp-card.winning{border-color:#ffd700;box-shadow:0 8px 24px rgba(255,215,0,.25)}
-.mbp-cover{position:relative;aspect-ratio:4/3;background:#edf2f7;cursor:pointer}
-.mbp-cover img{width:100%;height:100%;object-fit:cover;display:block}
+.mbp-card.winner{border-color:#10b981;box-shadow:0 8px 24px rgba(16,185,129,.4);background:linear-gradient(180deg,rgba(16,185,129,0.05),rgba(15,20,25,0.9))}
+.mbp-cover{position:relative;aspect-ratio:4/3;background:#edf2f7;cursor:pointer;overflow:hidden}
+.mbp-cover img{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
 .mbp-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#a0aec0;font-size:2rem}
 .mbp-badge{position:absolute;top:10px;left:10px;background:#ffd700;color:#2d3748;padding:6px 10px;border-radius:20px;font-weight:800;font-size:.85rem}
+.mbp-badge.winner-badge{background:linear-gradient(135deg,#10b981,#059669);color:white;animation:pulse 2s infinite}
+.mbp-badge.paid-badge{background:linear-gradient(135deg,#38a169,#2f855a);color:white}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
 .mbp-info{padding:12px}
 .mbp-info h4{margin:0 0 6px 0;font-size:1rem;line-height:1.35;color:#2d3748;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .mbp-rows{display:grid;gap:6px;margin-bottom:10px}
 .mbp-rows .row{display:flex;align-items:center;justify-content:space-between}
 .mbp-rows .row.dim{color:#718096}
-.mbp-actions{display:flex;gap:10px}
+.mbp-actions{display:flex;gap:10px;flex-wrap:wrap}
 .mbp-actions .link{background:#edf2f7;border:1px solid #cbd5e0;color:#2d3748;padding:6px 10px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .mbp-actions .warn{background:#fed7d7;border:1px solid #feb2b2;color:#c53030;padding:6px 10px;border-radius:8px;cursor:pointer}
+.mbp-actions .pay-btn{background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;padding:8px 14px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-weight:600;box-shadow:0 4px 12px rgba(16,185,129,0.3);transition:all .2s ease}
+.mbp-actions .pay-btn:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(16,185,129,0.4)}
+.mbp-actions .paid-badge{background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:6px 10px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.mbp-actions .purchased-badge{background:linear-gradient(135deg,#38a169,#2f855a);border:none;color:white;padding:8px 14px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;font-weight:700;box-shadow:0 4px 12px rgba(56,161,105,0.4)}
+.mbp-thanks{margin-top:10px;padding:10px 12px;background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(16,185,129,0.03));border:1px solid rgba(16,185,129,0.2);border-radius:10px;color:#059669;font-size:0.9rem;font-weight:500;text-align:center;line-height:1.4}
 .mbp-msg{margin-top:8px;color:#4a5568;background:#f7fafc;border:1px dashed #e2e8f0;border-radius:8px;padding:8px}
 .mbp-pager{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px}
 .mbp-pager button{background:#edf2f7;border:1px solid #cbd5e0;color:#2d3748;padding:6px 10px;border-radius:8px;cursor:pointer}

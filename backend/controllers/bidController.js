@@ -1,10 +1,43 @@
 const { validationResult } = require('express-validator');
 const Bid = require('../models/Bid');
 const Product = require('../models/Product');
+const UserActivity = require('../models/UserActivity');
 
-// @desc    Crear nueva oferta
-// @route   POST /api/products/:productId/ofertas
-// @access  Private (Solo compradores)
+// Función auxiliar para registrar intentos de subasta en analytics
+const registrarIntentoSubastaAnalytics = async (userId, productoId, categoria, monto, exitoso, razonFallo = null) => {
+  try {
+    // Buscar la sesión más reciente del usuario
+    const sesionReciente = await UserActivity.findOne({ usuario: userId })
+      .sort({ 'sesion.horaInicio': -1 });
+    
+    if (sesionReciente) {
+      const ahora = new Date();
+      sesionReciente.intentosSubasta.push({
+        productoId,
+        categoria,
+        monto,
+        exitoso,
+        razonFallo,
+        timestamp: ahora,
+        horaCompleta: {
+          segundo: ahora.getSeconds(),
+          minuto: ahora.getMinutes(),
+          hora: ahora.getHours(),
+          dia: ahora.getDate(),
+          mes: ahora.getMonth() + 1,
+          ano: ahora.getFullYear()
+        }
+      });
+      await sesionReciente.save();
+    }
+  } catch (error) {
+    console.error('Error registrando analytics:', error);
+    // No lanzar error para no afectar la operación principal
+  }
+};
+
+// Crear nueva oferta
+
 const crearOferta = async (req, res) => {
   try {
     // Verificar errores de validación
@@ -32,6 +65,16 @@ const crearOferta = async (req, res) => {
 
     // Verificar que la subasta esté activa
     if (producto.estado !== 'activo') {
+      // Registrar intento fallido
+      await registrarIntentoSubastaAnalytics(
+        req.user._id,
+        productoId,
+        producto.categoria,
+        monto,
+        false,
+        'Subasta no activa'
+      );
+      
       return res.status(400).json({
         success: false,
         message: 'La subasta no está activa'
@@ -40,6 +83,16 @@ const crearOferta = async (req, res) => {
 
     // Verificar que no haya terminado
     if (new Date() > producto.fechaFin) {
+      // Registrar intento fallido
+      await registrarIntentoSubastaAnalytics(
+        req.user._id,
+        productoId,
+        producto.categoria,
+        monto,
+        false,
+        'Subasta finalizada'
+      );
+      
       return res.status(400).json({
         success: false,
         message: 'La subasta ya ha terminado'
@@ -48,6 +101,16 @@ const crearOferta = async (req, res) => {
 
     // Verificar que no haya empezado aún
     if (new Date() < producto.fechaInicio) {
+      // Registrar intento fallido
+      await registrarIntentoSubastaAnalytics(
+        req.user._id,
+        productoId,
+        producto.categoria,
+        monto,
+        false,
+        'Subasta aún no ha comenzado'
+      );
+      
       return res.status(400).json({
         success: false,
         message: 'La subasta aún no ha comenzado'
@@ -58,6 +121,16 @@ const crearOferta = async (req, res) => {
     {
       const vendedorId = producto.vendedor && producto.vendedor._id ? producto.vendedor._id : producto.vendedor;
       if (String(vendedorId) === String(req.user._id)) {
+        // Registrar intento fallido
+        await registrarIntentoSubastaAnalytics(
+          req.user._id,
+          productoId,
+          producto.categoria,
+          monto,
+          false,
+          'Usuario es el vendedor'
+        );
+        
         return res.status(400).json({
           success: false,
           message: 'No puedes ofertar en tu propia subasta'
@@ -67,6 +140,16 @@ const crearOferta = async (req, res) => {
 
     // Verificar permisos para subastas privadas
     if (!producto.puedeVerSubasta(req.user._id.toString())) {
+      // Registrar intento fallido
+      await registrarIntentoSubastaAnalytics(
+        req.user._id,
+        productoId,
+        producto.categoria,
+        monto,
+        false,
+        'Sin permisos (subasta privada)'
+      );
+      
       return res.status(403).json({
         success: false,
         message: 'No tienes permisos para ofertar en esta subasta'
@@ -76,6 +159,16 @@ const crearOferta = async (req, res) => {
     // Verificar que el monto sea mayor al precio actual más el incremento mínimo
     const montoMinimo = producto.precioActual + producto.incrementoMinimo;
     if (monto < montoMinimo) {
+      // Registrar intento fallido
+      await registrarIntentoSubastaAnalytics(
+        req.user._id,
+        productoId,
+        producto.categoria,
+        monto,
+        false,
+        `Monto insuficiente (mínimo: $${montoMinimo})`
+      );
+      
       return res.status(400).json({
         success: false,
         message: `El monto mínimo es $${montoMinimo.toLocaleString()}`
@@ -90,6 +183,16 @@ const crearOferta = async (req, res) => {
     }).sort({ monto: -1 });
 
     if (ofertaActual && ofertaActual.monto >= monto) {
+      // Registrar intento fallido
+      await registrarIntentoSubastaAnalytics(
+        req.user._id,
+        productoId,
+        producto.categoria,
+        monto,
+        false,
+        'Ya tiene oferta igual o mayor'
+      );
+      
       return res.status(400).json({
         success: false,
         message: 'Ya tienes una oferta igual o mayor'
@@ -130,6 +233,16 @@ const crearOferta = async (req, res) => {
       .populate('postor', 'nombre apellido')
       .populate('producto', 'titulo precioActual');
 
+    // Registrar intento exitoso en analytics
+    await registrarIntentoSubastaAnalytics(
+      req.user._id,
+      productoId,
+      producto.categoria,
+      monto,
+      true,
+      null
+    );
+
     res.status(201).json({
       success: true,
       message: 'Oferta realizada exitosamente',
@@ -145,9 +258,8 @@ const crearOferta = async (req, res) => {
   }
 };
 
-// @desc    Obtener ofertas de una subasta
-// @route   GET /api/products/:productId/ofertas
-// @access  Public
+// Obtener ofertas de una subasta
+
 const obtenerOfertasProducto = async (req, res) => {
   try {
     const {
@@ -236,9 +348,8 @@ const obtenerOfertasProducto = async (req, res) => {
   }
 };
 
-// @desc    Obtener ofertas del usuario
-// @route   GET /api/ofertas/mis-ofertas
-// @access  Private
+// Obtener ofertas del usuario
+
 const obtenerMisOfertas = async (req, res) => {
   try {
     const {
@@ -297,9 +408,8 @@ const obtenerMisOfertas = async (req, res) => {
   }
 };
 
-// @desc    Retirar oferta
-// @route   DELETE /api/ofertas/:id
-// @access  Private
+// Retirar oferta
+
 const retirarOferta = async (req, res) => {
   try {
     const oferta = await Bid.findById(req.params.id);
@@ -364,9 +474,8 @@ const retirarOferta = async (req, res) => {
   }
 };
 
-// @desc    Obtener historial de ofertas de un producto
-// @route   GET /api/products/:productId/historial-ofertas
-// @access  Private (Solo vendedor del producto)
+// Obtener historial de ofertas de un producto
+
 const obtenerHistorialOfertas = async (req, res) => {
   try {
     const producto = await Product.findById(req.params.productId);
@@ -440,10 +549,74 @@ const obtenerHistorialOfertas = async (req, res) => {
   }
 };
 
+// Pagar oferta ganadora
+const pagarOfertaGanadora = async (req, res) => {
+  try {
+    const { metodoPago, transaccionId } = req.body;
+    const oferta = await Bid.findById(req.params.id);
+
+    if (!oferta) {
+      return res.status(404).json({
+        success: false,
+        message: 'Oferta no encontrada'
+      });
+    }
+
+    // Verificar que sea el postor
+    if (oferta.postor.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permisos para pagar esta oferta'
+      });
+    }
+
+    // Verificar que sea una oferta ganadora
+    if (oferta.estado !== 'ganadora') {
+      return res.status(400).json({
+        success: false,
+        message: 'Solo puedes pagar ofertas ganadoras'
+      });
+    }
+
+    // Verificar que no esté ya pagada
+    if (oferta.pagado) {
+      return res.status(400).json({
+        success: false,
+        message: 'Esta oferta ya ha sido pagada'
+      });
+    }
+
+    // Actualizar la oferta con la información del pago
+    oferta.pagado = true;
+    oferta.metodoPago = metodoPago;
+    oferta.transaccionId = transaccionId;
+    oferta.fechaPago = new Date();
+    await oferta.save();
+
+    const ofertaCompleta = await Bid.findById(oferta._id)
+      .populate('postor', 'nombre apellido')
+      .populate('producto', 'titulo precioActual');
+
+    res.json({
+      success: true,
+      message: 'Pago procesado exitosamente',
+      data: ofertaCompleta
+    });
+
+  } catch (error) {
+    console.error('Error procesando pago:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error del servidor'
+    });
+  }
+};
+
 module.exports = {
   crearOferta,
   obtenerOfertasProducto,
   obtenerMisOfertas,
   retirarOferta,
-  obtenerHistorialOfertas
+  obtenerHistorialOfertas,
+  pagarOfertaGanadora
 };

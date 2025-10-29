@@ -5,7 +5,8 @@ const {
   obtenerOfertasProducto,
   obtenerMisOfertas,
   retirarOferta,
-  obtenerHistorialOfertas
+  obtenerHistorialOfertas,
+  pagarOfertaGanadora
 } = require('../controllers/bidController');
 const { protect, authorize } = require('../middleware/auth');
 const { validateBid } = require('../middleware/validators');
@@ -18,5 +19,6 @@ router.get('/products/:productId/historial-ofertas', protect, obtenerHistorialOf
 // Rutas de ofertas del usuario
 router.get('/mis-ofertas', protect, authorize('comprador'), obtenerMisOfertas);
 router.delete('/:id', protect, authorize('comprador'), retirarOferta);
+router.patch('/:id/pagar', protect, authorize('comprador'), pagarOfertaGanadora);
 
 module.exports = router;

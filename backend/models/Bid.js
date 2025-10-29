@@ -44,6 +44,24 @@ const bidSchema = new mongoose.Schema({
   notificacionEnviada: {
     type: Boolean,
     default: false
+  },
+  // Campos para el pago de ofertas ganadoras
+  pagado: {
+    type: Boolean,
+    default: false
+  },
+  metodoPago: {
+    type: String,
+    enum: ['tarjeta_credito', 'tarjeta_debito', 'transferencia', 'efectivo', null],
+    default: null
+  },
+  transaccionId: {
+    type: String,
+    default: null
+  },
+  fechaPago: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import authService from '../services/authService';
+import { iniciarSesionTracking, finalizarSesion } from '../services/analyticsService';
 
 // Estado inicial
 const initialState = {
@@ -18,6 +19,7 @@ const ActionTypes = {
   REGISTER_START: 'REGISTER_START',
   REGISTER_SUCCESS: 'REGISTER_SUCCESS',
   REGISTER_FAILURE: 'REGISTER_FAILURE',
+  UPDATE_USER: 'UPDATE_USER',
   CLEAR_ERROR: 'CLEAR_ERROR',
   SET_LOADING: 'SET_LOADING'
 };
@@ -59,6 +61,13 @@ const authReducer = (state, action) => {
         user: null,
         isAuthenticated: false,
         loading: false,
+        error: null
+      };
+
+    case ActionTypes.UPDATE_USER:
+      return {
+        ...state,
+        user: { ...state.user, ...action.payload },
         error: null
       };
 
@@ -118,6 +127,10 @@ export const AuthProvider = ({ children }) => {
           type: ActionTypes.LOGIN_SUCCESS,
           payload: response.data?.data || response.data
         });
+        
+        // Iniciar tracking de analytics
+        await iniciarSesionTracking();
+        
         return response;
       } catch (error) {
         dispatch({
@@ -147,8 +160,18 @@ export const AuthProvider = ({ children }) => {
     },
 
     logout: () => {
+      // Finalizar sesión de analytics
+      finalizarSesion();
+      
       authService.logout();
       dispatch({ type: ActionTypes.LOGOUT });
+    },
+
+    updateUser: (userData) => {
+      dispatch({ 
+        type: ActionTypes.UPDATE_USER, 
+        payload: userData 
+      });
     },
 
     clearError: () => {

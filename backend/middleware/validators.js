@@ -1,6 +1,6 @@
 const { body } = require('express-validator');
 
-// Validaciones para registro de usuario
+// validacion para el registro, valida el nombre, email, teléfono, contraseña (min 6, mayúscula, minúscula, número), dirección completa
 const validateUserRegistration = [
   body('nombre')
     .notEmpty()
@@ -57,7 +57,7 @@ const validateUserRegistration = [
     .trim()
 ];
 
-// Validaciones para login
+// VALIDACIONES LOGIN: Valida formato de email y que la contraseña no esté vacía
 const validateLogin = [
   body('email')
     .isEmail()
@@ -69,7 +69,7 @@ const validateLogin = [
     .withMessage('La contraseña es requerida')
 ];
 
-// Validaciones para producto/subasta
+// validacion para la subasta, valida el título, descripción, precio >0, fechas válidas, duración mínima 1hr, máximo 5 imágenes
 const validateProduct = [
   body('titulo')
     .notEmpty()
