@@ -18,7 +18,6 @@ import {
 import Layout from '../../components/layout/Layout';
 import productService from '../../services/productService';
 import CreateAuctionModal from '../../components/auctions/CreateAuctionModal';
-import { iniciarSeccion, finalizarSeccion, registrarClick } from '../../services/analyticsService';
 import Swal from 'sweetalert2';
 import './MyAuctionsPage.css';
 
@@ -32,14 +31,6 @@ const MyAuctionsPage = () => {
   });
   const [editingAuction, setEditingAuction] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-
-  // 🔥 TRACKING: Iniciar sección
-  useEffect(() => {
-    iniciarSeccion('my-auctions');
-    return () => {
-      finalizarSeccion();
-    };
-  }, []);
 
   useEffect(() => {
     loadData();
@@ -59,11 +50,8 @@ const MyAuctionsPage = () => {
     }
   };
 
-  const handleStatusChange = async (auctionId, newStatus) => {
+  const changeAuctionStatus = async (auctionId, newStatus) => {
     try {
-      // 🔥 TRACKING: Click en cambiar estado
-      registrarClick('boton', `Cambiar Estado: ${newStatus}`, auctionId);
-      
       await productService.cambiarEstadoSubasta(auctionId, newStatus);
       await loadData();
       Swal.fire({
@@ -121,9 +109,6 @@ const MyAuctionsPage = () => {
       }
 
       try {
-        // 🔥 TRACKING: Click en eliminar con ofertas
-        registrarClick('boton', 'Eliminar Subasta (con ofertas)', auction._id);
-        
         // Forzar eliminación aunque haya ofertas
         await productService.eliminarSubasta(auction._id, true);
         await loadData();
@@ -155,9 +140,6 @@ const MyAuctionsPage = () => {
 
       if (result.isConfirmed) {
         try {
-          // 🔥 TRACKING: Click en eliminar sin ofertas
-          registrarClick('boton', 'Eliminar Subasta (sin ofertas)', auction._id);
-          
           await productService.eliminarSubasta(auction._id);
           await loadData();
           Swal.fire({
@@ -184,9 +166,6 @@ const MyAuctionsPage = () => {
     console.log('ID de la subasta:', auction._id);
     console.log('Tipo de ID:', typeof auction._id);
     console.log('Longitud del ID:', auction._id?.length);
-    
-    // 🔥 TRACKING: Click en editar subasta
-    registrarClick('boton', 'Editar Subasta', auction._id);
     
     setEditingAuction(auction);
   };
@@ -221,7 +200,7 @@ const MyAuctionsPage = () => {
           icon: FaPlay, 
           label: 'Activar', 
           color: '#38a169',
-          action: () => handleStatusChange(auction._id, 'activo')
+          action: () => changeAuctionStatus(auction._id, 'activo')
         });
         break;
       case 'activo':
@@ -229,13 +208,13 @@ const MyAuctionsPage = () => {
           icon: FaPause, 
           label: 'Pausar', 
           color: '#ed8936',
-          action: () => handleStatusChange(auction._id, 'pausado')
+          action: () => changeAuctionStatus(auction._id, 'pausado')
         });
         actions.push({ 
           icon: FaStop, 
           label: 'Finalizar', 
           color: '#3182ce',
-          action: () => handleStatusChange(auction._id, 'finalizado')
+          action: () => changeAuctionStatus(auction._id, 'finalizado')
         });
         break;
       case 'pausado':
@@ -243,7 +222,7 @@ const MyAuctionsPage = () => {
           icon: FaPlay, 
           label: 'Reanudar', 
           color: '#38a169',
-          action: () => handleStatusChange(auction._id, 'activo')
+          action: () => changeAuctionStatus(auction._id, 'activo')
         });
         break;
     }

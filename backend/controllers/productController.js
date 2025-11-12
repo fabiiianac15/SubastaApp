@@ -1,3 +1,11 @@
+// ============================================================================
+// PUNTO 1: TRAZABILIDAD COMPLETA DEL PROCESO DE SUBASTA
+// ============================================================================
+// Este archivo maneja toda la gestión de subastas:
+// - VENDEDOR: Crear, administrar, recibir ofertas, cerrar subasta
+// - COMPRADOR: Ver subastas, realizar ofertas, recibir notificaciones
+// ============================================================================
+
 const { validationResult } = require('express-validator');
 const Product = require('../models/Product');
 const Bid = require('../models/Bid');
@@ -5,6 +13,9 @@ const Notification = require('../models/Notification');
 const multer = require('multer');
 const path = require('path');
 
+// ============================================================================
+// VENDEDOR - PASO 1: Configuración para subir imágenes de productos
+// ============================================================================
 // Configurar multer para subida de archivos
 const storage = multer.diskStorage({
   destination: function(req, file, cb) {
@@ -36,8 +47,15 @@ const upload = multer({
   }
 }).array('imagenes', 5); // Máximo 5 imágenes
 
-// crea la una nueva subasta con imágenes, valida fechas y precios
-
+// ============================================================================
+// VENDEDOR - PASO 2: Crear nueva subasta (INICIO DEL PROCESO)
+// ============================================================================
+// Esta función permite al vendedor:
+// - Crear una subasta con título, descripción, categoría
+// - Subir imágenes del producto
+// - Establecer precio inicial y fechas de inicio/fin
+// - La subasta queda en estado "borrador" o "activo" según las fechas
+// ============================================================================
 const crearProducto = async (req, res) => {
   try {
     // Primero ejecutar multer para procesar multipart/form-data
@@ -148,8 +166,16 @@ const crearProducto = async (req, res) => {
   }
 };
 
-// Obtener todas las subastas
-
+// ============================================================================
+// COMPRADOR - PASO 1: Ver todas las subastas disponibles
+// ============================================================================
+// Esta función permite al comprador:
+// - Ver todas las subastas activas
+// - Filtrar por categoría, estado, rango de precio
+// - Buscar por texto (título/descripción)
+// - Ordenar por diferentes criterios
+// - Paginación para mejor rendimiento
+// ============================================================================
 const obtenerProductos = async (req, res) => {
   try {
     const {

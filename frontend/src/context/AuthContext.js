@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import authService from '../services/authService';
-import { iniciarSesionTracking, finalizarSesion } from '../services/analyticsService';
+import { 
+  iniciarSesionTracking, 
+  finalizarSesion, 
+  iniciarHeartbeat,
+  configurarVisibilityTracking 
+} from '../services/analyticsService';
 
 // Estado inicial
 const initialState = {
@@ -105,6 +110,11 @@ export const AuthProvider = ({ children }) => {
           type: ActionTypes.LOGIN_SUCCESS,
           payload: user
         });
+        
+        // Iniciar tracking si usuario ya está autenticado
+        iniciarSesionTracking().then(() => {
+          iniciarHeartbeat();
+        });
       } else {
         dispatch({
           type: ActionTypes.SET_LOADING,
@@ -114,6 +124,9 @@ export const AuthProvider = ({ children }) => {
     };
 
     checkAuth();
+    
+    // Configurar tracking de visibilidad de página
+    configurarVisibilityTracking();
   }, []);
 
   const actions = {
@@ -128,8 +141,9 @@ export const AuthProvider = ({ children }) => {
           payload: response.data?.data || response.data
         });
         
-        // Iniciar tracking de analytics
+        // Iniciar tracking de analytics con heartbeat
         await iniciarSesionTracking();
+        iniciarHeartbeat();
         
         return response;
       } catch (error) {

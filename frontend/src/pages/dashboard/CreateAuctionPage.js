@@ -14,6 +14,7 @@ import {
 } from 'react-icons/fa';
 import Layout from '../../components/layout/Layout';
 import productService from '../../services/productService';
+import { registrarIntentoSubasta } from '../../services/analyticsService';
 import Swal from 'sweetalert2';
 import './CreateAuctionPage.css';
 
@@ -151,6 +152,17 @@ const CreateAuctionPage = () => {
       const result = await productService.crearSubasta(formDataToSend);
       const creada = result?.data;
       const esActiva = creada?.estado === 'activo';
+      
+      // ✅ Registrar intento EXITOSO de crear subasta
+      await registrarIntentoSubasta(
+        creada?._id || 'nuevo',
+        formData.titulo,
+        formData.categoria,
+        parseFloat(formData.precioInicial) || 0,
+        true, // exitoso
+        null
+      );
+      
       const mensaje = esActiva 
         ? 'Tu subasta ha sido publicada exitosamente'
         : 'Tu subasta fue creada como borrador y se activará automáticamente en la fecha y hora de inicio';
@@ -177,6 +189,16 @@ const CreateAuctionPage = () => {
       });
       
     } catch (error) {
+      // ❌ Registrar intento FALLIDO de crear subasta
+      await registrarIntentoSubasta(
+        null,
+        formData.titulo,
+        formData.categoria,
+        parseFloat(formData.precioInicial) || 0,
+        false, // no exitoso
+        error.message || 'Error desconocido'
+      );
+      
       Swal.fire({
         title: 'Error',
         text: error.message || 'No se pudo crear la subasta',

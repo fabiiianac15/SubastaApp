@@ -1,70 +1,27 @@
+// ============================================================================
+// 📸 PUNTO 2: SERVICIO FRONTEND DE ANALYTICS - CAPTURA AUTOMÁTICA
+// ============================================================================
+// Este servicio se ejecuta automáticamente en el frontend para capturar:
+// 1. ✅ Ubicación del usuario (HTML5 Geolocation API)
+// 2. ✅ Tiempo en página (heartbeat cada 30 segundos)
+// 3. ✅ Clicks en categorías
+// 4. ✅ Hora de ingreso (al hacer login)
+// 5. ✅ Intentos de crear subastas
+// ============================================================================
+
 import api from './api';
 
 let currentSessionId = null;
 let sessionStartTime = null;
-let sectionStartTime = null;
-let currentSection = null;
-let isInitializing = false; // Bandera para evitar múltiples inicializaciones simultáneas
+let heartbeatInterval = null;
 
-// Función helper para asegurar que hay sesión activa
-const ensureSession = async () => {
-  // Si ya hay sesión, retornar true
-  if (currentSessionId) {
-    return true;
-  }
-  
-  // Si ya se está inicializando, esperar
-  if (isInitializing) {
-    console.log('⏳ Esperando inicialización de sesión...');
-    // Esperar hasta 3 segundos
-    for (let i = 0; i < 30; i++) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      if (currentSessionId) {
-        console.log('✅ Sesión establecida después de esperar');
-        return true;
-      }
-    }
-    console.error('❌ Timeout esperando sesión');
-    return false;
-  }
-  
-  // Intentar iniciar sesión
-  console.log('🔄 Iniciando nueva sesión de tracking...');
-  isInitializing = true;
-  
-  try {
-    await iniciarSesionTracking();
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    if (currentSessionId) {
-      console.log('✅ Sesión iniciada exitosamente:', currentSessionId);
-      isInitializing = false;
-      return true;
-    } else {
-      console.error('❌ No se pudo establecer sessionId');
-      isInitializing = false;
-      return false;
-    }
-  } catch (error) {
-    console.error('❌ Error al iniciar sesión:', error);
-    isInitializing = false;
-    return false;
-  }
-};
-
-// Detectar tipo de dispositivo
-const getDeviceType = () => {
-  const ua = navigator.userAgent;
-  if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
-    return 'tablet';
-  }
-  if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) {
-    return 'mobile';
-  }
-  return 'desktop';
-};
-
-// Obtener ubicación del navegador
+// ============================================================================
+// FUNCIÓN AUXILIAR: Obtener Ubicación del Navegador
+// ============================================================================
+// Solicita permisos al usuario para acceder a su ubicación GPS
+// Usa HTML5 Geolocation API para obtener coordenadas precisas
+// Si el usuario rechaza o no está disponible, retorna null y usa IP como fallback
+// ============================================================================
 const obtenerUbicacionNavegador = () => {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
@@ -82,7 +39,7 @@ const obtenerUbicacionNavegador = () => {
         });
       },
       (error) => {
-        console.log('No se pudo obtener ubicación del navegador:', error.message);
+        console.log('⚠️ No se pudo obtener ubicación del navegador:', error.message);
         resolve(null);
       },
       {
@@ -94,17 +51,22 @@ const obtenerUbicacionNavegador = () => {
   });
 };
 
-// Iniciar sesión de tracking
+// ============================================================================
+// FRONTEND - FUNCIÓN 1: Iniciar Sesión de Tracking
+// ============================================================================
+// Se ejecuta automáticamente cuando el usuario hace LOGIN
+// Captura:
+// - ✅ UBICACIÓN: Solicita geolocalización del navegador (lat/lng precisas)
+// - ✅ HORA DE INGRESO: El backend registra automáticamente día/mes/año
+// - Envía los datos al endpoint /api/analytics/session/start
+// - Guarda el sessionId para usar en los siguientes registros
+// ============================================================================
 export const iniciarSesionTracking = async () => {
   try {
     sessionStartTime = Date.now();
-    
-    // Intentar obtener ubicación del navegador
     const ubicacionNavegador = await obtenerUbicacionNavegador();
     
     const response = await api.post('/analytics/session/start', {
-      userAgent: navigator.userAgent,
-      dispositivo: getDeviceType(),
       ubicacionNavegador
     });
 
@@ -117,137 +79,109 @@ export const iniciarSesionTracking = async () => {
       return currentSessionId;
     }
   } catch (error) {
-    console.error('Error iniciando sesión de tracking:', error);
+    console.error('❌ Error iniciando sesión de tracking:', error);
   }
 };
 
-// Actualizar sesión
-const actualizarSesionTracking = async (data) => {
-  // Asegurar que hay sesión activa
-  const hasSession = await ensureSession();
-  
-  if (!hasSession) {
-    console.error('❌ No se pudo establecer sesión de tracking. Datos no enviados:', data);
+// ============================================================================
+// FRONTEND - FUNCIÓN 2: Heartbeat (Actualización Automática de Tiempo)
+// ============================================================================
+// Se ejecuta automáticamente cada 30 SEGUNDOS mientras el usuario está activo
+// Actualiza:
+// - ✅ TIEMPO EN PÁGINA: Incrementa duracionSegundos en MongoDB
+// - Solo se ejecuta si la pestaña está visible (document.hidden = false)
+// - Pausa automáticamente cuando el usuario cambia de pestaña
+// - Llama al endpoint PUT /api/analytics/session/:sessionId/tiempo
+// ============================================================================
+export const iniciarHeartbeat = () => {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+  }
+
+  heartbeatInterval = setInterval(async () => {
+    if (currentSessionId && !document.hidden) {
+      try {
+        await api.put(`/analytics/session/${currentSessionId}/tiempo`);
+        console.log('💓 Heartbeat - Tiempo actualizado');
+      } catch (error) {
+        console.error('❌ Error en heartbeat:', error);
+      }
+    }
+  }, 30000);
+
+  console.log('💓 Heartbeat iniciado');
+};
+
+export const detenerHeartbeat = () => {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+    console.log('💓 Heartbeat detenido');
+  }
+};
+
+// ============================================================================
+// FRONTEND - FUNCIÓN 3: Registrar Click en Categoría
+// ============================================================================
+// Se ejecuta cuando el usuario hace CLICK en un filtro de categoría
+// Por ejemplo: tecnología, moda, hogar, deportes, arte, vehículos
+// Registra:
+// - ✅ CATEGORÍA CLICKEADA: El nombre de la categoría
+// - El backend automáticamente agrega timestamp completo (día/mes/año/hora)
+// - Llama al endpoint POST /api/analytics/session/:sessionId/categoria
+// ============================================================================
+export const registrarClickCategoria = async (categoria) => {
+  if (!currentSessionId) {
+    console.warn('⚠️ No hay sesión activa para registrar click');
     return;
   }
 
   try {
-    console.log('📤 Actualizando sesión:', currentSessionId, data);
-    const response = await api.put(`/analytics/session/${currentSessionId}`, data);
-    console.log('✅ Sesión actualizada correctamente:', response.data);
-  } catch (error) {
-    console.error('❌ Error actualizando sesión:', error);
-    console.error('Detalles:', error.response?.data || error.message);
-  }
-};
-
-// Registrar click
-export const registrarClick = async (tipo, elemento, elementoId = null) => {
-  console.log('🖱️ [CLICK]', { tipo, elemento, elementoId });
-  
-  const tiempoEnPagina = sessionStartTime ? Math.floor((Date.now() - sessionStartTime) / 1000) : 0;
-  
-  await actualizarSesionTracking({
-    clicks: [{
-      tipo,
-      elemento,
-      elementoId,
-      tiempoEnPagina
-    }]
-  });
-};
-
-// Registrar vista de categoría
-export const registrarVistaCategoria = async (categoria) => {
-  console.log('📂 [CATEGORIA]', categoria);
-  
-  await actualizarSesionTracking({
-    categoria
-  });
-};
-
-// Registrar producto visto
-export const registrarProductoVisto = async (productoId, categoria, tiempoViendo = 0) => {
-  console.log('👁️ [PRODUCTO VISTO]', { productoId, categoria, tiempoViendo });
-  
-  await actualizarSesionTracking({
-    productoVisto: {
-      productoId,
-      categoria,
-      tiempoViendo
-    }
-  });
-};
-
-// Registrar búsqueda
-export const registrarBusqueda = async (termino, categoria = null, resultados = 0) => {
-  console.log('🔍 [BUSQUEDA]', { termino, categoria, resultados });
-  
-  await actualizarSesionTracking({
-    busqueda: {
-      termino,
-      categoria,
-      resultados
-    }
-  });
-};
-
-// Iniciar tracking de sección
-export const iniciarSeccion = (nombreSeccion) => {
-  // Si hay sección previa, guardar su tiempo
-  if (currentSection && sectionStartTime) {
-    const tiempoSegundos = Math.floor((Date.now() - sectionStartTime) / 1000);
-    actualizarSesionTracking({
-      seccion: currentSection,
-      tiempoSeccion: tiempoSegundos
-    });
-  }
-
-  currentSection = nombreSeccion;
-  sectionStartTime = Date.now();
-};
-
-// Finalizar tracking de sección
-export const finalizarSeccion = async () => {
-  if (currentSection && sectionStartTime) {
-    const tiempoSegundos = Math.floor((Date.now() - sectionStartTime) / 1000);
-    await actualizarSesionTracking({
-      seccion: currentSection,
-      tiempoSeccion: tiempoSegundos
+    console.log('📂 Registrando click en categoría:', categoria);
+    
+    await api.post(`/analytics/session/${currentSessionId}/categoria`, {
+      categoria
     });
     
-    currentSection = null;
-    sectionStartTime = null;
+    console.log('✅ Click en categoría registrado');
+  } catch (error) {
+    console.error('❌ Error registrando click en categoría:', error);
   }
 };
 
-// Registrar intento de subasta
-export const registrarIntentoSubasta = async (productoId, categoria, monto, exitoso, razonFallo = null) => {
-  console.log('🎯 [INTENTO SUBASTA]', { productoId, categoria, monto, exitoso, razonFallo });
-  
-  // Asegurar que hay sesión activa
-  const hasSession = await ensureSession();
-  
-  if (!hasSession) {
-    console.error('❌ No se pudo registrar intento de subasta - Sin sesión');
+// ============================================================================
+// FRONTEND - FUNCIÓN 4: Registrar Intento de Crear Subasta
+// ============================================================================
+// Se ejecuta cuando el usuario intenta CREAR UNA SUBASTA
+// Registra:
+// - ✅ INTENTO DE SUBASTA: exitoso=true si se creó, false si falló
+// - ID del producto, título del producto, categoría, precio inicial
+// - razonFallo: mensaje de error si falló (ej: "Debes subir al menos una imagen")
+// - El backend automáticamente agrega timestamp completo
+// - Llama al endpoint POST /api/analytics/intento-subasta
+// ============================================================================
+export const registrarIntentoSubasta = async (productoId, tituloProducto, categoria, precioInicial, exitoso, razonFallo = null) => {
+  if (!currentSessionId) {
+    console.warn('⚠️ No hay sesión activa para registrar intento de subasta');
     return;
   }
 
   try {
-    console.log('📊 Registrando intento de subasta:', { 
-      sessionId: currentSessionId,
+    console.log('🎯 Registrando intento de subasta:', { 
       productoId, 
+      tituloProducto,
       categoria, 
-      monto, 
+      precioInicial,
       exitoso, 
       razonFallo 
     });
     
-    await api.post('/analytics/bid-attempt', {
+    await api.post('/analytics/intento-subasta', {
       sessionId: currentSessionId,
       productoId,
+      tituloProducto,
       categoria,
-      monto,
+      precioInicial,
       exitoso,
       razonFallo
     });
@@ -255,49 +189,69 @@ export const registrarIntentoSubasta = async (productoId, categoria, monto, exit
     console.log('✅ Intento de subasta registrado correctamente');
   } catch (error) {
     console.error('❌ Error registrando intento de subasta:', error);
-    console.error('Detalles del error:', error.response?.data || error.message);
   }
 };
 
-// Obtener recomendaciones personalizadas
-export const obtenerRecomendaciones = async () => {
+// Obtener resumen de actividad
+export const obtenerResumen = async () => {
   try {
-    const response = await api.get('/analytics/recommendations');
+    const response = await api.get('/analytics/resumen');
     return response.data;
   } catch (error) {
-    console.error('Error obteniendo recomendaciones:', error);
-    return { success: false, data: { recomendaciones: [] } };
-  }
-};
-
-// Obtener estadísticas del usuario
-export const obtenerEstadisticas = async () => {
-  try {
-    const response = await api.get('/analytics/stats');
-    return response.data;
-  } catch (error) {
-    console.error('Error obteniendo estadísticas:', error);
+    console.error('❌ Error obteniendo resumen:', error);
     return null;
   }
 };
 
-// Finalizar sesión (llamar al cerrar la app o logout)
+// Configurar visibility tracking
+export const configurarVisibilityTracking = () => {
+  if (typeof document === 'undefined') return;
+
+  document.addEventListener('visibilitychange', async () => {
+    if (document.hidden) {
+      console.log('👁️ Página oculta - pausando heartbeat');
+      detenerHeartbeat();
+      
+      if (currentSessionId) {
+        try {
+          await api.put(`/analytics/session/${currentSessionId}/tiempo`);
+        } catch (error) {
+          console.error('Error actualizando tiempo:', error);
+        }
+      }
+    } else {
+      console.log('��️ Página visible - reanudando heartbeat');
+      iniciarHeartbeat();
+    }
+  });
+
+  console.log('👁️ Visibility tracking configurado');
+};
+
+// Finalizar sesión
 export const finalizarSesion = async () => {
-  await finalizarSeccion();
+  detenerHeartbeat();
+  
+  if (currentSessionId) {
+    try {
+      await api.put(`/analytics/session/${currentSessionId}/tiempo`);
+      console.log('✅ Sesión finalizada');
+    } catch (error) {
+      console.error('Error finalizando sesión:', error);
+    }
+  }
+  
   currentSessionId = null;
   sessionStartTime = null;
 };
 
 export default {
   iniciarSesionTracking,
-  registrarClick,
-  registrarVistaCategoria,
-  registrarProductoVisto,
-  registrarBusqueda,
-  iniciarSeccion,
-  finalizarSeccion,
+  iniciarHeartbeat,
+  detenerHeartbeat,
+  registrarClickCategoria,
   registrarIntentoSubasta,
-  obtenerRecomendaciones,
-  obtenerEstadisticas,
+  obtenerResumen,
+  configurarVisibilityTracking,
   finalizarSesion
 };

@@ -1,43 +1,53 @@
+// ============================================================================
+// PUNTO 1: TRAZABILIDAD - PROCESO DE OFERTAS (PUJAS)
+// ============================================================================
+// Este archivo maneja el proceso de ofertas/pujas:
+// - COMPRADOR: Realizar ofertas, ver historial, actualizar ofertas
+// - VENDEDOR: Ver ofertas recibidas en sus subastas
+// - SISTEMA: Validar ofertas, actualizar ganador, notificaciones
+// ============================================================================
+
 const { validationResult } = require('express-validator');
 const Bid = require('../models/Bid');
 const Product = require('../models/Product');
 const UserActivity = require('../models/UserActivity');
 
-// Función auxiliar para registrar intentos de subasta en analytics
-const registrarIntentoSubastaAnalytics = async (userId, productoId, categoria, monto, exitoso, razonFallo = null) => {
+// ============================================================================
+// FUNCIÓN AUXILIAR: Registrar intentos de subasta en analytics
+// ============================================================================
+const registrarIntentoSubastaAnalytics = async (usuarioId, productoId, categoria, monto, exitoso, motivoError) => {
   try {
-    // Buscar la sesión más reciente del usuario
-    const sesionReciente = await UserActivity.findOne({ usuario: userId })
-      .sort({ 'sesion.horaInicio': -1 });
-    
-    if (sesionReciente) {
-      const ahora = new Date();
-      sesionReciente.intentosSubasta.push({
-        productoId,
-        categoria,
-        monto,
-        exitoso,
-        razonFallo,
-        timestamp: ahora,
-        horaCompleta: {
-          segundo: ahora.getSeconds(),
-          minuto: ahora.getMinutes(),
-          hora: ahora.getHours(),
-          dia: ahora.getDate(),
-          mes: ahora.getMonth() + 1,
-          ano: ahora.getFullYear()
+    await UserActivity.findOneAndUpdate(
+      { usuario: usuarioId },
+      {
+        $push: {
+          intentosSubasta: {
+            producto: productoId,
+            categoria,
+            monto,
+            exitoso,
+            motivoError,
+            fecha: new Date()
+          }
         }
-      });
-      await sesionReciente.save();
-    }
+      },
+      { upsert: true }
+    );
   } catch (error) {
-    console.error('Error registrando analytics:', error);
-    // No lanzar error para no afectar la operación principal
+    console.error('Error registrando intento de subasta:', error);
+    // No lanzar error, solo log
   }
 };
 
-// Crear nueva oferta
-
+// ============================================================================
+// COMPRADOR - PASO 2: Realizar oferta en una subasta
+// ============================================================================
+// Esta función permite al comprador:
+// - Realizar una oferta en una subasta activa
+// - El sistema valida que la oferta sea mayor al precio actual + incremento mínimo
+// - Se actualiza el precio actual y el ganador temporal
+// - Se notifica al vendedor y otros participantes
+// ============================================================================
 const crearOferta = async (req, res) => {
   try {
     // Verificar errores de validación

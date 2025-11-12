@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
-import { iniciarSeccion, finalizarSeccion, registrarClick } from '../../services/analyticsService';
+// import { iniciarSeccion, finalizarSeccion, // registrarClick } from '../../services/analyticsService'; // DESACTIVADO - No requerido
 import productService from '../../services/productService';
 import { 
   FaGavel, 
@@ -38,14 +38,6 @@ const Dashboard = () => {
   const [timeFrame, setTimeFrame] = useState('week');
   const [recentAuctions, setRecentAuctions] = useState([]);
   const [loadingAuctions, setLoadingAuctions] = useState(true);
-
-  // 🔥 TRACKING: Iniciar sesión en dashboard
-  useEffect(() => {
-    iniciarSeccion('dashboard');
-    return () => {
-      finalizarSeccion();
-    };
-  }, []);
 
   // Cargar subastas recientes desde la base de datos
   useEffect(() => {
@@ -145,7 +137,7 @@ const Dashboard = () => {
               transition={{ duration: 0.5, delay: 0.1 * index }}
               onClick={() => {
                 // 🔥 TRACKING: Click en acción rápida
-                registrarClick('boton', `Acción: ${action.title}`, null);
+                // registrarClick('boton', `Acción: ${action.title}`, null);
               }}
             >
               <div className="action-icon">
@@ -173,7 +165,7 @@ const Dashboard = () => {
               onClick={() => {
                 setTimeFrame('week');
                 // 🔥 TRACKING: Click en filtro temporal
-                registrarClick('boton', 'Estadísticas: Semana', null);
+                // registrarClick('boton', 'Estadísticas: Semana', null);
               }}
             >
               Semana
@@ -183,7 +175,7 @@ const Dashboard = () => {
               onClick={() => {
                 setTimeFrame('month');
                 // 🔥 TRACKING: Click en filtro temporal
-                registrarClick('boton', 'Estadísticas: Mes', null);
+                // registrarClick('boton', 'Estadísticas: Mes', null);
               }}
             >
               Mes
@@ -193,7 +185,7 @@ const Dashboard = () => {
               onClick={() => {
                 setTimeFrame('year');
                 // 🔥 TRACKING: Click en filtro temporal
-                registrarClick('boton', 'Estadísticas: Año', null);
+                // registrarClick('boton', 'Estadísticas: Año', null);
               }}
             >
               Año
@@ -342,7 +334,7 @@ const Dashboard = () => {
                     whileHover={{ scale: 1.02 }}
                     onClick={() => {
                       // 🔥 TRACKING: Click en subasta reciente
-                      registrarClick('producto', auction.titulo, auction._id);
+                      // registrarClick('producto', auction.titulo, auction._id);
                     }}
                   >
                     <div className="auction-image">

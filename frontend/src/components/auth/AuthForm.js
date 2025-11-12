@@ -215,22 +215,25 @@ const AuthForm = () => {
               <h2>{isSignUp ? 'Crear Cuenta' : 'Iniciar Sesión'}</h2>
               
 
-              {(error || fieldErrors.length > 0) && (
-                <motion.div 
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="error-message"
-                >
-                  {error && <div>{error}</div>}
-                  {fieldErrors.length > 0 && (
-                    <ul style={{ margin: 0, paddingLeft: 20 }}>
-                      {fieldErrors.map((err, idx) => (
-                        <li key={idx}>{err.msg}</li>
-                      ))}
-                    </ul>
-                  )}
-                </motion.div>
-              )}
+              <AnimatePresence>
+                {(error || fieldErrors.length > 0) && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="error-message"
+                  >
+                    {error && <div>{error}</div>}
+                    {fieldErrors.length > 0 && (
+                      <ul style={{ margin: 0, paddingLeft: 20 }}>
+                        {fieldErrors.map((err, idx) => (
+                          <li key={idx}>{err.msg}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {isSignUp ? (
                 // Formulario de Registro

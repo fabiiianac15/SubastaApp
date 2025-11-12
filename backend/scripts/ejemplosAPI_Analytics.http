@@ -1,0 +1,330 @@
+###############################################################################
+# EJEMPLOS DE API - SISTEMA DE ANALYTICS
+# Archivo para VS Code REST Client extension o Postman
+###############################################################################
+
+@baseUrl = http://localhost:5000/api
+@token = AQUI_TU_TOKEN_JWT
+
+###############################################################################
+# 1. INICIAR SESIÓN DE TRACKING
+###############################################################################
+
+POST {{baseUrl}}/analytics/session/start
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+  "dispositivo": "desktop",
+  "ubicacionNavegador": {
+    "latitud": 4.6097,
+    "longitud": -74.0817,
+    "precision": 50,
+    "zona_horaria": "America/Bogota"
+  }
+}
+
+###
+# Respuesta esperada:
+# {
+#   "success": true,
+#   "data": {
+#     "sessionId": "673xxxxxxxxxxxxx"
+#   }
+# }
+
+
+###############################################################################
+# 2. ACTUALIZAR SESIÓN - REGISTRAR CLICKS
+###############################################################################
+
+PUT {{baseUrl}}/analytics/session/673xxxxxxxxxxxxx
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "clicks": [
+    {
+      "tipo": "categoria",
+      "elemento": "Tecnología",
+      "elementoId": "tecnologia",
+      "tiempoEnPagina": 120
+    }
+  ]
+}
+
+###############################################################################
+# 3. ACTUALIZAR SESIÓN - REGISTRAR CATEGORÍA VISTA
+###############################################################################
+
+PUT {{baseUrl}}/analytics/session/673xxxxxxxxxxxxx
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "categoria": "tecnologia"
+}
+
+###############################################################################
+# 4. ACTUALIZAR SESIÓN - REGISTRAR PRODUCTO VISTO
+###############################################################################
+
+PUT {{baseUrl}}/analytics/session/673xxxxxxxxxxxxx
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "productoVisto": {
+    "productoId": "672xxxxxxxxxxxxx",
+    "categoria": "tecnologia",
+    "tiempoViendo": 45
+  }
+}
+
+###############################################################################
+# 5. ACTUALIZAR SESIÓN - REGISTRAR BÚSQUEDA
+###############################################################################
+
+PUT {{baseUrl}}/analytics/session/673xxxxxxxxxxxxx
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "busqueda": {
+    "termino": "laptop",
+    "categoria": "tecnologia",
+    "resultados": 12
+  }
+}
+
+###############################################################################
+# 6. ACTUALIZAR SESIÓN - REGISTRAR TIEMPO EN SECCIÓN
+###############################################################################
+
+PUT {{baseUrl}}/analytics/session/673xxxxxxxxxxxxx
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "seccion": "subastas",
+  "tiempoSeccion": 300
+}
+
+###############################################################################
+# 7. REGISTRAR INTENTO DE SUBASTA - EXITOSO
+###############################################################################
+
+POST {{baseUrl}}/analytics/bid-attempt
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "sessionId": "673xxxxxxxxxxxxx",
+  "productoId": "672xxxxxxxxxxxxx",
+  "categoria": "tecnologia",
+  "monto": 50000,
+  "exitoso": true,
+  "razonFallo": null
+}
+
+###############################################################################
+# 8. REGISTRAR INTENTO DE SUBASTA - FALLIDO
+###############################################################################
+
+POST {{baseUrl}}/analytics/bid-attempt
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "sessionId": "673xxxxxxxxxxxxx",
+  "productoId": null,
+  "categoria": "moda",
+  "monto": 30000,
+  "exitoso": false,
+  "razonFallo": "Error en validación de fechas"
+}
+
+###############################################################################
+# 9. OBTENER ESTADÍSTICAS PERSONALES
+###############################################################################
+
+GET {{baseUrl}}/analytics/stats
+Authorization: Bearer {{token}}
+
+###
+# Respuesta esperada:
+# {
+#   "success": true,
+#   "data": {
+#     "totalSesiones": 5,
+#     "tiempoTotalSegundos": 3600,
+#     "totalClicks": 25,
+#     "categoriasVistas": {
+#       "tecnologia": 10,
+#       "moda": 5
+#     },
+#     "productosVistos": 15,
+#     "intentosSubasta": {
+#       "total": 3,
+#       "exitosos": 2,
+#       "fallidos": 1
+#     },
+#     "busquedasRealizadas": 8,
+#     "seccionesMasVisitadas": {
+#       "subastas": 1200,
+#       "home": 600
+#     }
+#   }
+# }
+
+###############################################################################
+# 10. OBTENER RECOMENDACIONES PERSONALIZADAS
+###############################################################################
+
+GET {{baseUrl}}/analytics/recommendations
+Authorization: Bearer {{token}}
+
+###
+# Respuesta esperada:
+# {
+#   "success": true,
+#   "data": {
+#     "recomendaciones": [...productos],
+#     "razon": "Basado en tu actividad",
+#     "categoriasPreferidas": ["tecnologia", "moda"],
+#     "rangoPrecios": {
+#       "min": 20000,
+#       "max": 100000
+#     }
+#   }
+# }
+
+###############################################################################
+# 11. REPORTE DE ACTIVIDAD GENERAL (Por rango de fechas)
+###############################################################################
+
+GET {{baseUrl}}/analytics/reports/activity?fechaInicio=2025-01-01&fechaFin=2025-12-31
+Authorization: Bearer {{token}}
+
+###
+# Respuesta esperada:
+# {
+#   "success": true,
+#   "data": {
+#     "totalSesiones": 150,
+#     "usuariosUnicos": 50,
+#     "tiempoPromedioSesion": 450,
+#     "clicksTotales": 2500,
+#     "categoriasPopulares": {
+#       "tecnologia": 500,
+#       "moda": 300
+#     },
+#     "horasPico": {
+#       "14": 200,
+#       "15": 180,
+#       "16": 150
+#     },
+#     "diasSemanaActivos": {
+#       "lunes": 300,
+#       "martes": 250
+#     },
+#     "dispositivosUsados": {
+#       "desktop": 80,
+#       "mobile": 60,
+#       "tablet": 10
+#     },
+#     "ubicaciones": {
+#       "Bogotá, Colombia": 50,
+#       "Medellín, Colombia": 30
+#     },
+#     "intentosSubastaTotal": 45,
+#     "tasaExitoSubastas": "88.89",
+#     "detalles": [...]
+#   }
+# }
+
+###############################################################################
+# 12. REPORTE DE ACTIVIDAD - FILTRADO POR USUARIO
+###############################################################################
+
+GET {{baseUrl}}/analytics/reports/activity?userId=672xxxxxxxxxxxxx&fechaInicio=2025-11-01
+Authorization: Bearer {{token}}
+
+###############################################################################
+# 13. MAPA DE UBICACIONES
+###############################################################################
+
+GET {{baseUrl}}/analytics/reports/locations
+Authorization: Bearer {{token}}
+
+###
+# Respuesta esperada:
+# {
+#   "success": true,
+#   "data": {
+#     "total": 50,
+#     "ubicaciones": [
+#       {
+#         "lat": 4.6097,
+#         "lng": -74.0817,
+#         "ciudad": "Bogotá",
+#         "pais": "Colombia",
+#         "usuario": "Juan Pérez",
+#         "fecha": "2025-11-10T14:30:00.000Z"
+#       },
+#       ...
+#     ]
+#   }
+# }
+
+###############################################################################
+# 14. MAPA DE UBICACIONES - CON RANGO DE FECHAS
+###############################################################################
+
+GET {{baseUrl}}/analytics/reports/locations?fechaInicio=2025-11-01&fechaFin=2025-11-30
+Authorization: Bearer {{token}}
+
+###############################################################################
+# 15. CATEGORÍAS MÁS POPULARES
+###############################################################################
+
+GET {{baseUrl}}/analytics/reports/categories?limite=10
+Authorization: Bearer {{token}}
+
+###
+# Respuesta esperada:
+# {
+#   "success": true,
+#   "data": [
+#     { "categoria": "tecnologia", "vistas": 500 },
+#     { "categoria": "moda", "vistas": 300 },
+#     { "categoria": "hogar", "vistas": 200 }
+#   ]
+# }
+
+###############################################################################
+# 16. CATEGORÍAS MÁS POPULARES - TOP 5
+###############################################################################
+
+GET {{baseUrl}}/analytics/reports/categories?limite=5
+Authorization: Bearer {{token}}
+
+###############################################################################
+# NOTAS DE USO
+###############################################################################
+# 
+# 1. Reemplazar {{token}} con tu JWT token obtenido al hacer login
+# 2. Reemplazar "673xxxxxxxxxxxxx" con el sessionId real
+# 3. Reemplazar "672xxxxxxxxxxxxx" con IDs reales de productos
+# 4. Las fechas deben estar en formato ISO: YYYY-MM-DD
+# 5. Para usar en Postman:
+#    - Crear una colección
+#    - Agregar variable de entorno "baseUrl" y "token"
+#    - Copiar cada request
+# 6. Para usar en VS Code:
+#    - Instalar extensión "REST Client"
+#    - Abrir este archivo
+#    - Click en "Send Request" sobre cada ###
+#
+###############################################################################

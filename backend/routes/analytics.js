@@ -2,27 +2,33 @@ const express = require('express');
 const router = express.Router();
 const {
   iniciarSesion,
-  actualizarSesion,
+  actualizarTiempo,
+  registrarClickCategoria,
   registrarIntentoSubasta,
-  obtenerRecomendaciones,
-  obtenerEstadisticas
+  obtenerResumen,
+  obtenerReporteCompleto
 } = require('../controllers/analyticsController');
 const { protect } = require('../middleware/auth');
 
 // Todas las rutas requieren autenticación
 router.use(protect);
 
-// Sesión
+// Iniciar sesión de tracking
 router.post('/session/start', iniciarSesion);
-router.put('/session/:sessionId', actualizarSesion);
 
-// Intentos de subasta
-router.post('/bid-attempt', registrarIntentoSubasta);
+// Actualizar tiempo en página
+router.put('/session/:sessionId/tiempo', actualizarTiempo);
 
-// Recomendaciones
-router.get('/recommendations', obtenerRecomendaciones);
+// Registrar click en categoría
+router.post('/session/:sessionId/categoria', registrarClickCategoria);
 
-// Estadísticas
-router.get('/stats', obtenerEstadisticas);
+// Registrar intento de subasta
+router.post('/intento-subasta', registrarIntentoSubasta);
+
+// Obtener resumen de actividad
+router.get('/resumen', obtenerResumen);
+
+// Obtener reporte completo (puede filtrar por usuario y fechas)
+router.get('/reporte', obtenerReporteCompleto);
 
 module.exports = router;

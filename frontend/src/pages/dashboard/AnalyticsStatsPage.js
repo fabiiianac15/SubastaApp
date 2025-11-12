@@ -15,8 +15,7 @@ import {
   FaTimesCircle
 } from 'react-icons/fa';
 import Layout from '../../components/layout/Layout';
-import { obtenerEstadisticas } from '../../services/analyticsService';
-import { iniciarSeccion, finalizarSeccion, registrarClick } from '../../services/analyticsService';
+import { obtenerResumen } from '../../services/analyticsService';
 import './AnalyticsStatsPage.css';
 
 const AnalyticsStatsPage = () => {
@@ -24,20 +23,13 @@ const AnalyticsStatsPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 🔥 TRACKING: Iniciar sección
-    iniciarSeccion('analytics-stats');
-    
     cargarEstadisticas();
-    
-    return () => {
-      finalizarSeccion();
-    };
   }, []);
 
   const cargarEstadisticas = async () => {
     try {
       setLoading(true);
-      const response = await obtenerEstadisticas();
+      const response = await obtenerResumen();
       
       if (response && response.success) {
         setStats(response.data);

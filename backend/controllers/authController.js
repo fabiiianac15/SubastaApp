@@ -86,23 +86,43 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
   try {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Errores de validación',
+        errors: errors.array()
+      });
+    }
+
     const { email, password } = req.body;
 
     // Validar email & password
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Por favor proporcione email y contraseña'
+        message: 'Por favor proporcione email y contraseña',
+        errors: [{ msg: 'Email y contraseña son requeridos' }]
       });
     }
 
     // Verificar usuario
     const user = await User.findOne({ email }).select('+password');
 
-    if (!user || !(await user.matchPassword(password))) {
+    if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Credenciales inválidas'
+        message: 'Credenciales inválidas',
+        errors: [{ msg: 'El email no está registrado' }]
+      });
+    }
+
+    if (!(await user.matchPassword(password))) {
+      return res.status(401).json({
+        success: false,
+        message: 'Credenciales inválidas',
+        errors: [{ msg: 'La contraseña es incorrecta' }]
       });
     }
 
@@ -122,7 +142,8 @@ const login = async (req, res) => {
     console.error(error);
     res.status(500).json({
       success: false,
-      message: 'Error del servidor'
+      message: 'Error del servidor',
+      errors: [{ msg: 'Error del servidor al procesar la solicitud' }]
     });
   }
 };

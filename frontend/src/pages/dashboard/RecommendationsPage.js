@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FaStar, FaEye, FaGavel, FaUsers, FaChartLine, FaLightbulb } from 'react-icons/fa';
 import Layout from '../../components/layout/Layout';
-import { obtenerRecomendaciones } from '../../services/analyticsService';
-import { iniciarSeccion, finalizarSeccion, registrarClick, registrarProductoVisto } from '../../services/analyticsService';
+// import {// obtenerRecomendaciones } from '../../services/analyticsService';
+// import {// iniciarSeccion,// finalizarSeccion,// registrarClick,// registrarProductoVisto } from '../../services/analyticsService';
 import productService from '../../services/productService';
 import './RecommendationsPage.css';
 
@@ -16,25 +16,46 @@ const RecommendationsPage = () => {
 
   useEffect(() => {
     // 🔥 TRACKING: Iniciar sección
-    iniciarSeccion('recommendations');
+   // iniciarSeccion('recommendations');
     
     cargarRecomendaciones();
     
     return () => {
-      finalizarSeccion();
+     // finalizarSeccion();
     };
   }, []);
 
   const cargarRecomendaciones = async () => {
     try {
       setLoading(true);
-      const response = await obtenerRecomendaciones();
-      
-      if (response.success) {
+      // Intentar obtener recomendaciones (si existe el endpoint). Si no, usar fallback
+      let response = { success: false };
+      try {
+        // Si en algún momento se implementa obtenerRecomendaciones, se puede descomentar
+        // const resp = await obtenerRecomendaciones();
+        // if (resp && resp.success) response = resp;
+
+        // Fallback: obtener subastas recientes para mostrar como "recomendadas"
+        const resp = await productService.obtenerSubastas({ pagina: 1, limite: 12 });
+        response = {
+          success: true,
+          data: {
+            recomendaciones: resp.data || [],
+            razon: 'Basado en subastas recientes',
+            categoriasPreferidas: [],
+            rangoPrecios: null
+          }
+        };
+      } catch (err) {
+        console.warn('No fue posible obtener recomendaciones, usando fallback:', err);
+        response = { success: false };
+      }
+
+      if (response && response.success) {
         setRecomendaciones(response.data.recomendaciones || []);
         setRazon(response.data.razon || 'Recomendaciones para ti');
         setCategoriasPreferidas(response.data.categoriasPreferidas || []);
-        setRangoPrecios(response.data.rangoPrecios);
+        setRangoPrecios(response.data.rangoPrecios || null);
       }
     } catch (error) {
       console.error('Error cargando recomendaciones:', error);
@@ -45,8 +66,8 @@ const RecommendationsPage = () => {
 
   const handleProductClick = (producto) => {
     // 🔥 TRACKING: Click en producto recomendado
-    registrarClick('producto', `Recomendación: ${producto.titulo}`, producto._id);
-    registrarProductoVisto(producto._id, producto.categoria, 0);
+   // registrarClick('producto', `Recomendación: ${producto.titulo}`, producto._id);
+   // registrarProductoVisto(producto._id, producto.categoria, 0);
   };
 
   const STATIC_BASE = (process.env.REACT_APP_API_URL?.replace('/api','')) || 'http://localhost:5000';

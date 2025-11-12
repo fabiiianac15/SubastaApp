@@ -13,7 +13,12 @@ const authService = {
       
       return response.data;
     } catch (error) {
-      throw error.response?.data || { message: 'Error en el registro' };
+      const errorData = error.response?.data || { message: 'Error en el registro' };
+      // Asegurar que siempre devuelve el formato correcto con errors array
+      if (!errorData.errors && errorData.message) {
+        errorData.errors = [{ msg: errorData.message }];
+      }
+      throw errorData;
     }
   },
 
@@ -29,7 +34,12 @@ const authService = {
       
       return response.data;
     } catch (error) {
-      throw error.response?.data || { message: 'Error en el login' };
+      const errorData = error.response?.data || { message: 'Error en el login' };
+      // Asegurar que siempre devuelve el formato correcto con errors array
+      if (!errorData.errors && errorData.message) {
+        errorData.errors = [{ msg: errorData.message }];
+      }
+      throw errorData;
     }
   },
 
