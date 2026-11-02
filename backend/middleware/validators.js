@@ -1,5 +1,8 @@
 const { body } = require('express-validator');
 
+const REGLA_PASSWORD = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+const MENSAJE_PASSWORD = 'La contraseña debe contener al menos una minúscula, una mayúscula y un número';
+
 // validacion para el registro, valida el nombre, email, teléfono, contraseña (min 6, mayúscula, minúscula, número), dirección completa
 const validateUserRegistration = [
   body('nombre')
@@ -28,8 +31,8 @@ const validateUserRegistration = [
   body('password')
     .isLength({ min: 6 })
     .withMessage('La contraseña debe tener al menos 6 caracteres')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage('La contraseña debe contener al menos una minúscula, una mayúscula y un número'),
+    .matches(REGLA_PASSWORD)
+    .withMessage(MENSAJE_PASSWORD),
     
   body('tipoUsuario')
     .isIn(['comprador', 'vendedor'])
@@ -65,8 +68,23 @@ const validateLogin = [
     .normalizeEmail(),
     
   body('password')
+    .isString()
     .notEmpty()
     .withMessage('La contraseña es requerida')
+];
+
+const validateChangePassword = [
+  body('currentPassword')
+    .isString()
+    .notEmpty()
+    .withMessage('Escribe tu contraseña actual'),
+
+  body('newPassword')
+    .isString()
+    .isLength({ min: 6 })
+    .withMessage('La nueva contraseña debe tener al menos 6 caracteres')
+    .matches(REGLA_PASSWORD)
+    .withMessage(MENSAJE_PASSWORD)
 ];
 
 // validacion para la subasta, valida el título, descripción, precio >0, fechas válidas, duración mínima 1hr, máximo 5 imágenes
@@ -217,6 +235,7 @@ const validateEstadoChange = [
 module.exports = {
   validateUserRegistration,
   validateLogin,
+  validateChangePassword,
   validateProduct,
   validateBid,
   validateProductUpdate,
