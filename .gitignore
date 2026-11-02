@@ -1,0 +1,15 @@
+# Dependencias
+node_modules/
+
+# Secretos y configuración local
+.env
+.env.*
+!.env.example
+
+# Archivos subidos por usuarios y datos de demostración generados
+backend/uploads/
+
+# Compilados y registros
+frontend/build/
+*.log
+.DS_Store

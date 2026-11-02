@@ -1,6 +1,14 @@
 {
-  "dependencies": {
-    "fs": "^0.0.1-security",
-    "sweetalert2": "^11.23.0"
+  "name": "subastapp",
+  "private": true,
+  "description": "Plataforma de subastas en línea con React, Express y MongoDB",
+  "scripts": {
+    "setup": "npm install && npm install --prefix backend && npm install --prefix frontend && node scripts/setup.js",
+    "seed": "npm run seed --prefix backend",
+    "dev": "concurrently -n api,web -c yellow,cyan \"npm run dev --prefix backend\" \"npm start --prefix frontend\"",
+    "test": "npm test --prefix backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }
