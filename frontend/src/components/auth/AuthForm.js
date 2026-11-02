@@ -1,425 +1,172 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FaUser, FaLock, FaEnvelope, FaPhone, FaMapMarkerAlt } from 'react-icons/fa';
-import { FaFacebookF, FaTwitter, FaGoogle, FaLinkedinIn } from 'react-icons/fa';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { AnimatePresence, motion, useAnimate } from 'framer-motion';
+import { FaEye, FaEyeSlash, FaExclamationCircle, FaGavel, FaShoppingBag, FaSpinner } from 'react-icons/fa';
 import { useAuthActions, useAuth } from '../../context/AuthContext';
+import Gavel, { Logo } from '../ui/Gavel';
+import { Segmented } from '../ui/Controls';
+import { dur, ease, spring } from '../../lib/motion';
+import '../ui/ui.css';
 import './AuthForm.css';
+
+const EMPTY = {
+  email: '', password: '', nombre: '', apellido: '', telefono: '', tipoUsuario: 'comprador',
+  direccion: { calle: '', ciudad: '', codigoPostal: '', pais: 'Colombia' },
+};
+
+const Field = ({ id, label, hint, ...props }) => (
+  <div className="field">
+    <label htmlFor={id}>{label}</label>
+    <input id={id} className="input" aria-describedby={hint ? `${id}-h` : undefined} {...props} />
+    {hint && <span id={`${id}-h`} className="field__hint">{hint}</span>}
+  </div>
+);
+
+const ROLES = [
+  { value: 'comprador', icon: FaShoppingBag, title: 'Quiero comprar', text: 'Puja y gana lotes.' },
+  { value: 'vendedor', icon: FaGavel, title: 'Quiero vender', text: 'Publica tus subastas.' },
+];
 
 const AuthForm = () => {
   const [isSignUp, setIsSignUp] = useState(false);
-  const [formData, setFormData] = useState({
-    // Login fields
-    email: '',
-    password: '',
-    // Register fields
-    nombre: '',
-    apellido: '',
-    telefono: '',
-    tipoUsuario: 'comprador',
-    direccion: {
-      calle: '',
-      ciudad: '',
-      codigoPostal: '',
-      pais: 'Colombia'
-    }
-  });
-
+  const [formData, setFormData] = useState(EMPTY);
+  const [showPass, setShowPass] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState([]);
   const { login, register, clearError } = useAuthActions();
   const { loading, error } = useAuth();
-  // Estado local para errores detallados
-  const [fieldErrors, setFieldErrors] = useState([]);
+  const [scope, animate] = useAnimate();
 
   useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => {
-        clearError();
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [error, clearError]);
+    if (!error) return undefined;
+    const t = setTimeout(clearError, 6000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
 
-  const handleInputChange = (e) => {
+  const onField = (e) => {
     const { name, value } = e.target;
-    
-    if (name.includes('direccion.')) {
-      const field = name.split('.')[1];
-      setFormData(prev => ({
-        ...prev,
-        direccion: {
-          ...prev.direccion,
-          [field]: value
-        }
-      }));
+    if (name.startsWith('direccion.')) {
+      const key = name.split('.')[1];
+      setFormData((p) => ({ ...p, direccion: { ...p.direccion, [key]: value } }));
     } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
+      setFormData((p) => ({ ...p, [name]: value }));
     }
   };
 
-  const handleSubmit = async (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
     setFieldErrors([]);
     try {
-      if (isSignUp) {
-        // REGISTRO: Envía datos completos (nombre, apellido, email, teléfono, contraseña, tipo usuario, dirección)
-        await register(formData);
-      } else {
-        // LOGIN: Envía solo email y contraseña
-        await login({
-          email: formData.email,
-          password: formData.password
-        });
-      }
-      // Redirección se maneja en el contexto
+      if (isSignUp) await register(formData);
+      else await login({ email: formData.email, password: formData.password });
     } catch (err) {
-      // Si la respuesta tiene errores de validación, mostrarlos
-      if (err.errors && Array.isArray(err.errors)) {
-        setFieldErrors(err.errors);
-      } else {
-        setFieldErrors([]);
-      }
-      console.error('Error en autenticación:', err);
+      setFieldErrors(Array.isArray(err.errors) ? err.errors : []);
+      animate('.auth__form', { x: [0, -8, 8, -4, 0] }, { duration: 0.32, ease: 'easeOut' });
     }
   };
 
-  const toggleMode = () => {
-    setIsSignUp(!isSignUp);
+  const switchMode = (mode) => {
+    const signUp = mode === 'up';
+    if (signUp === isSignUp) return;
+    setIsSignUp(signUp);
+    setFieldErrors([]);
     clearError();
-    setFormData({
-      email: '',
-      password: '',
-      nombre: '',
-      apellido: '',
-      telefono: '',
-      tipoUsuario: 'comprador',
-      direccion: {
-        calle: '',
-        ciudad: '',
-        codigoPostal: '',
-        pais: 'Colombia'
-      }
-    });
   };
 
+  // authService repite el mensaje general dentro de errors: se muestra una sola vez.
+  const messages = fieldErrors.length ? [...new Set(fieldErrors.map((f) => f.msg))] : error ? [error] : [];
+
   return (
-    <div className="auth-container">
-      {/* Panel Izquierdo - Azul con ilustraciones */}
-      <motion.div 
-        className={`auth-left-panel ${isSignUp ? 'move-right' : ''}`}
-        animate={{
-          x: isSignUp ? '100%' : '0%'
-        }}
-        transition={{ duration: 0.6, ease: "easeInOut" }}
-      >
-        <div className="auth-content">
-          <motion.div
-            key={isSignUp ? 'signup-content' : 'signin-content'}
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            <h2>{isSignUp ? '¿Ya tienes cuenta?' : '¿Nuevo aquí?'}</h2>
-            <p>
-              {isSignUp 
-                ? 'Ingresa con tus datos personales y comienza tu experiencia de subastas con nosotros'
-                : 'Regístrate y descubre un mundo de oportunidades únicas en nuestras subastas exclusivas'
-              }
-            </p>
-            <button 
-              className="auth-toggle-btn"
-              onClick={toggleMode}
-              disabled={loading}
-            >
-              {isSignUp ? 'SIGN IN' : 'SIGN UP'}
-            </button>
+    <div className="auth" ref={scope}>
+      <aside className="auth__art" aria-hidden="true">
+        <Link to="/" className="auth__logo" tabIndex={-1}><Logo /></Link>
+        <motion.span
+          className="auth__gavel"
+          animate={loading ? { rotate: [0, 18, -4, 0] } : { rotate: 0 }}
+          transition={loading ? { duration: 0.7, repeat: Infinity, ease: 'easeInOut' } : spring.soft}
+        >
+          <Gavel size="100%" />
+        </motion.span>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.p key={isSignUp ? 'up' : 'in'} className="auth__claim display" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10, transition: { duration: dur.exit } }} transition={{ duration: 0.34, ease: ease.out }}>
+            {isSignUp ? 'Tu primera puja empieza aquí' : 'La sala sigue abierta'}
+          </motion.p>
+        </AnimatePresence>
+      </aside>
+
+      <main className="auth__main">
+        <Link to="/" className="auth__logo auth__logo--mobile" aria-label="SubastApp, inicio"><Logo /></Link>
+        <motion.div className="auth__card" layout="size" transition={{ duration: 0.3, ease: ease.out }}>
+          <motion.h1 layout="position" className="display">{isSignUp ? 'Crear cuenta' : 'Entrar'}</motion.h1>
+          <motion.div layout="position">
+            <Segmented id="auth-mode" label="Acceso" value={isSignUp ? 'up' : 'in'} onChange={switchMode} options={[{ value: 'in', label: 'Iniciar sesión' }, { value: 'up', label: 'Registrarme' }]} />
           </motion.div>
 
-          {/* Ilustraciones */}
-          <div className="auth-illustration">
-            <AnimatePresence mode="wait">
-              {isSignUp ? (
-                <motion.div
-                  key="signin-illustration"
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 0.5 }}
-                  className="illustration-content"
-                >
-                  {/* Martillo de subasta */}
-                  <div className="auction-hammer">
-                    <div className="hammer-head"></div>
-                    <div className="hammer-handle"></div>
-                  </div>
-                  {/* Monedas flotantes */}
-                  <div className="floating-coins">
-                    <div className="coin coin-1">$</div>
-                    <div className="coin coin-2">€</div>
-                    <div className="coin coin-3">¥</div>
-                  </div>
+          <form className="auth__form" onSubmit={onSubmit}>
+            <AnimatePresence initial={false}>
+              {messages.length > 0 && (
+                <motion.div key="err" className="alert alert--error" role="alert" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: dur.exit } }}>
+                  <FaExclamationCircle size={14} />
+                  <div>{messages.map((m) => <div key={m}>{m}</div>)}</div>
                 </motion.div>
-              ) : (
-                <motion.div
-                  key="signup-illustration"
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 0.5 }}
-                  className="illustration-content"
-                >
-                  {/* Cohete de subastas */}
-                  <div className="auction-rocket">
-                    <div className="rocket-body"></div>
-                    <div className="rocket-window"></div>
-                    <div className="rocket-flames">
-                      <div className="flame"></div>
-                      <div className="flame"></div>
-                      <div className="flame"></div>
-                    </div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence initial={false} mode="popLayout">
+              {isSignUp && (
+                <motion.div key="who" className="auth__group" initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 18, transition: { duration: dur.exit } }} transition={{ duration: dur.ui, ease: ease.out }}>
+                  <div className="auth__roles" role="radiogroup" aria-label="Tipo de cuenta">
+                    {ROLES.map((r) => {
+                      const on = formData.tipoUsuario === r.value;
+                      return (
+                        <button key={r.value} type="button" role="radio" aria-checked={on} className={`auth__role ${on ? 'is-on' : ''}`} onClick={() => setFormData((p) => ({ ...p, tipoUsuario: r.value }))}>
+                          {on && <motion.span layoutId="auth-role" className="auth__role-pill" transition={spring.ui} />}
+                          <r.icon size={18} /><strong>{r.title}</strong><small>{r.text}</small>
+                        </button>
+                      );
+                    })}
                   </div>
-                  {/* Persona con laptop */}
-                  <div className="person-bidding">
-                    <div className="person-body"></div>
-                    <div className="person-head"></div>
-                    <div className="laptop"></div>
+                  <div className="form-row">
+                    <Field id="a-nombre" label="Nombre" name="nombre" autoComplete="given-name" required value={formData.nombre} onChange={onField} />
+                    <Field id="a-apellido" label="Apellido" name="apellido" autoComplete="family-name" required value={formData.apellido} onChange={onField} />
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
-        </div>
-      </motion.div>
 
-      {/* Panel Derecho - Formulario */}
-      <motion.div 
-        className={`auth-right-panel ${isSignUp ? 'move-left' : ''}`}
-        animate={{
-          x: isSignUp ? '-100%' : '0%'
-        }}
-        transition={{ duration: 0.6, ease: "easeInOut" }}
-      >
-        <div className="auth-form-container">
-          <AnimatePresence mode="wait">
-            <motion.form
-              key={isSignUp ? 'signup-form' : 'signin-form'}
-              initial={{ opacity: 0, x: isSignUp ? 100 : -100 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: isSignUp ? -100 : 100 }}
-              transition={{ duration: 0.5 }}
-              onSubmit={handleSubmit}
-              className="auth-form"
-            >
-              <h2>{isSignUp ? 'Crear Cuenta' : 'Iniciar Sesión'}</h2>
-              
+            <Field id="a-email" label="Correo" type="email" name="email" autoComplete="email" required value={formData.email} onChange={onField} />
 
-              <AnimatePresence>
-                {(error || fieldErrors.length > 0) && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="error-message"
-                  >
-                    {error && <div>{error}</div>}
-                    {fieldErrors.length > 0 && (
-                      <ul style={{ margin: 0, paddingLeft: 20 }}>
-                        {fieldErrors.map((err, idx) => (
-                          <li key={idx}>{err.msg}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+            <div className="field">
+              <label htmlFor="a-pass">Contraseña</label>
+              <div className="auth__pass">
+                <input id="a-pass" className="input" type={showPass ? 'text' : 'password'} name="password" autoComplete={isSignUp ? 'new-password' : 'current-password'} required minLength={isSignUp ? 6 : undefined} value={formData.password} onChange={onField} aria-describedby={isSignUp ? 'a-pass-h' : undefined} />
+                <button type="button" className="icon-btn" onClick={() => setShowPass((v) => !v)} aria-label={showPass ? 'Ocultar contraseña' : 'Mostrar contraseña'} aria-pressed={showPass}>
+                  {showPass ? <FaEyeSlash size={15} /> : <FaEye size={15} />}
+                </button>
+              </div>
+              {isSignUp && <span id="a-pass-h" className="field__hint">Mínimo 6 caracteres.</span>}
+            </div>
 
-              {isSignUp ? (
-                // Formulario de Registro
-                <div className="form-fields">
+            <AnimatePresence initial={false} mode="popLayout">
+              {isSignUp && (
+                <motion.div key="addr" className="auth__group" initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 18, transition: { duration: dur.exit } }} transition={{ duration: dur.ui, ease: ease.out, delay: 0.04 }}>
+                  <Field id="a-tel" label="Teléfono" type="tel" name="telefono" autoComplete="tel" required hint="Con indicativo, sin espacios: +573001234567" value={formData.telefono} onChange={onField} />
+                  <Field id="a-calle" label="Dirección" name="direccion.calle" autoComplete="street-address" required value={formData.direccion.calle} onChange={onField} />
                   <div className="form-row">
-                    <div className="input-group">
-                      <FaUser className="input-icon" />
-                      <input
-                        type="text"
-                        name="nombre"
-                        placeholder="Nombre"
-                        value={formData.nombre}
-                        onChange={handleInputChange}
-                        required
-                      />
-                    </div>
-                    <div className="input-group">
-                      <FaUser className="input-icon" />
-                      <input
-                        type="text"
-                        name="apellido"
-                        placeholder="Apellido"
-                        value={formData.apellido}
-                        onChange={handleInputChange}
-                        required
-                      />
-                    </div>
+                    <Field id="a-ciudad" label="Ciudad" name="direccion.ciudad" autoComplete="address-level2" required value={formData.direccion.ciudad} onChange={onField} />
+                    <Field id="a-cp" label="Código postal" name="direccion.codigoPostal" autoComplete="postal-code" required value={formData.direccion.codigoPostal} onChange={onField} />
                   </div>
-
-                  <div className="input-group">
-                    <FaEnvelope className="input-icon" />
-                    <input
-                      type="email"
-                      name="email"
-                      placeholder="Email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <FaPhone className="input-icon" />
-                    <input
-                      type="tel"
-                      name="telefono"
-                      placeholder="Teléfono (+573001234567)"
-                      value={formData.telefono}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <FaLock className="input-icon" />
-                    <input
-                      type="password"
-                      name="password"
-                      placeholder="Contraseña"
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      required
-                      minLength="6"
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <select
-                      name="tipoUsuario"
-                      value={formData.tipoUsuario}
-                      onChange={handleInputChange}
-                      required
-                    >
-                      <option value="comprador">Comprador</option>
-                      <option value="vendedor">Vendedor</option>
-                    </select>
-                  </div>
-
-                  <div className="form-section">
-                    <h4><FaMapMarkerAlt /> Dirección</h4>
-                    <div className="form-row">
-                      <div className="input-group">
-                        <input
-                          type="text"
-                          name="direccion.calle"
-                          placeholder="Calle"
-                          value={formData.direccion.calle}
-                          onChange={handleInputChange}
-                          required
-                        />
-                      </div>
-                      <div className="input-group">
-                        <input
-                          type="text"
-                          name="direccion.ciudad"
-                          placeholder="Ciudad"
-                          value={formData.direccion.ciudad}
-                          onChange={handleInputChange}
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="form-row">
-                      <div className="input-group">
-                        <input
-                          type="text"
-                          name="direccion.codigoPostal"
-                          placeholder="Código Postal"
-                          value={formData.direccion.codigoPostal}
-                          onChange={handleInputChange}
-                          required
-                        />
-                      </div>
-                      <div className="input-group">
-                        <input
-                          type="text"
-                          name="direccion.pais"
-                          placeholder="País"
-                          value={formData.direccion.pais}
-                          onChange={handleInputChange}
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                // Formulario de Login
-                <div className="form-fields">
-                  <div className="input-group">
-                    <FaUser className="input-icon" />
-                    <input
-                      type="email"
-                      name="email"
-                      placeholder="Email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <FaLock className="input-icon" />
-                    <input
-                      type="password"
-                      name="password"
-                      placeholder="Contraseña"
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
-                </div>
+                  <Field id="a-pais" label="País" name="direccion.pais" autoComplete="country-name" required value={formData.direccion.pais} onChange={onField} />
+                </motion.div>
               )}
+            </AnimatePresence>
 
-              <button 
-                type="submit" 
-                className="auth-submit-btn"
-                disabled={loading}
-              >
-                {loading ? 'Cargando...' : (isSignUp ? 'REGISTRARSE' : 'INICIAR SESIÓN')}
-              </button>
-
-              {!isSignUp && (
-                <div className="social-login">
-                  <p>O inicia sesión con redes sociales</p>
-                  <div className="social-buttons">
-                    <button type="button" className="social-btn facebook">
-                      <FaFacebookF />
-                    </button>
-                    <button type="button" className="social-btn twitter">
-                      <FaTwitter />
-                    </button>
-                    <button type="button" className="social-btn google">
-                      <FaGoogle />
-                    </button>
-                    <button type="button" className="social-btn linkedin">
-                      <FaLinkedinIn />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </motion.form>
-          </AnimatePresence>
-        </div>
-      </motion.div>
+            <motion.button layout="position" type="submit" className="btn btn--primary btn--lg btn--block" disabled={loading}>
+              {loading ? <><FaSpinner className="spin" /> Un momento…</> : isSignUp ? 'Crear mi cuenta' : 'Entrar'}
+            </motion.button>
+          </form>
+        </motion.div>
+      </main>
     </div>
   );
 };

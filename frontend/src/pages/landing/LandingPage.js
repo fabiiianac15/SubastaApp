@@ -1,287 +1,335 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from 'framer-motion';
+import { FaArrowRight, FaGavel } from 'react-icons/fa';
+import productService from '../../services/productService';
+import { useAuth } from '../../context/AuthContext';
+import Gavel, { Logo } from '../../components/ui/Gavel';
+import Odometer from '../../components/ui/Odometer';
+import CountUp from '../../components/ui/CountUp';
+import LotCard from '../../components/ui/LotCard';
+import { Countdown } from '../../components/ui/Countdown';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { coverOf } from '../../lib/media';
+import { dur, ease, spring } from '../../lib/motion';
+import '../../components/ui/ui.css';
 import './LandingPage.css';
+
+const money = (n) => productService.formatearMoneda(n);
+
+/* Baraja de lotes reales: se inclina con el puntero y se arrastra para pasar. */
+const Deck = ({ lots, onOpen }) => {
+  const [order, setOrder] = useState(() => lots.map((_, i) => i));
+  useEffect(() => setOrder(lots.map((_, i) => i)), [lots]);
+  const rx = useMotionValue(0);
+  const ry = useMotionValue(0);
+  const srx = useSpring(rx, spring.pointer);
+  const sry = useSpring(ry, spring.pointer);
+  const fine = useMediaQuery('(hover: hover) and (pointer: fine)');
+  const reduce = useReducedMotion();
+
+  const onMove = (e) => {
+    if (!fine || reduce) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    ry.set(((e.clientX - r.left) / r.width - 0.5) * 12);
+    rx.set(((e.clientY - r.top) / r.height - 0.5) * -10);
+  };
+  const reset = () => { rx.set(0); ry.set(0); };
+  const next = () => setOrder((o) => [...o.slice(1), o[0]]);
+
+  return (
+    <div className="deck" onPointerMove={onMove} onPointerLeave={reset}>
+      <motion.div className="deck__tilt" style={{ rotateX: srx, rotateY: sry }}>
+        {order.slice(0, 3).reverse().map((lotIndex) => {
+          const depth = order.indexOf(lotIndex);
+          const lot = lots[lotIndex];
+          const top = depth === 0;
+          return (
+            <motion.article
+              key={lot._id}
+              className="deck__card"
+              style={{ zIndex: 3 - depth }}
+              initial={false}
+              animate={{ y: depth * -20, x: depth * 14, scale: 1 - depth * 0.05, rotate: depth * 2.4, opacity: 1 }}
+              transition={spring.soft}
+              drag={top ? 'x' : false}
+              dragSnapToOrigin
+              dragElastic={0.7}
+              dragConstraints={{ left: 0, right: 0 }}
+              whileDrag={{ scale: 1.02, rotate: -2, cursor: 'grabbing' }}
+              onDragEnd={(_, i) => {
+                if (Math.abs(i.offset.x) > 90 || Math.abs(i.velocity.x) > 550) next();
+              }}
+            >
+              <div className="deck__media">
+                {coverOf(lot) ? <img src={coverOf(lot)} alt="" draggable={false} /> : <span className="lot__noimg"><FaGavel size={44} /></span>}
+              </div>
+              <div className="deck__info">
+                <h2 className="deck__title">
+                  {top ? <button type="button" onClick={() => onOpen(lot)}>{lot.titulo}</button> : lot.titulo}
+                </h2>
+                <div className="deck__row">
+                  <span className="deck__price display"><Odometer value={money(lot.precioActual ?? lot.precioInicial)} /></span>
+                  <Countdown end={lot.fechaFin} />
+                </div>
+              </div>
+            </motion.article>
+          );
+        })}
+      </motion.div>
+      {lots.length > 1 && (
+        <button type="button" className="deck__next" onClick={next}>Siguiente lote <FaArrowRight size={11} /></button>
+      )}
+    </div>
+  );
+};
+
+const Line = ({ children, delay }) => (
+  <span className="mask">
+    <motion.span className="mask__in" initial={{ y: '105%' }} animate={{ y: 0 }} transition={{ duration: 0.8, ease: ease.out, delay }}>{children}</motion.span>
+  </span>
+);
+
+const Ticker = ({ lots }) => {
+  const items = lots.map((l) => (
+    <span key={l._id} className="ticker__item">
+      <span>{l.titulo}</span><strong className="tnum">{money(l.precioActual ?? l.precioInicial)}</strong><Gavel size={18} />
+    </span>
+  ));
+  return (
+    <div className="ticker" aria-label="Lotes abiertos">
+      <div className="ticker__track">
+        <div className="ticker__group">{items}</div>
+        <div className="ticker__group" aria-hidden="true">{items}</div>
+      </div>
+    </div>
+  );
+};
+
+/* La escena del mazo: el scroll sube el precio y baja el mazo. */
+const STEPS = [
+  { title: 'Abre el lote', text: 'El vendedor sube fotos, fija un precio de salida y el incremento mínimo.' },
+  { title: 'Sube la puja', text: 'Cada oferta debe superar la anterior. Tú ves el precio y el tiempo moverse.' },
+  { title: 'Cae el mazo', text: 'Al cierre, la oferta más alta gana. Solo paga quien se lleva el lote.' },
+];
+const SCENE_START = 1200000;
+const SCENE_END = 3450000;
+
+const Scene = () => {
+  const ref = useRef(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] });
+  const smooth = useSpring(scrollYProgress, { stiffness: 120, damping: 26, mass: 0.4 });
+  const rotate = useTransform(smooth, [0, 0.78, 0.86, 1], [-38, -38, 8, 2]);
+  const ringScale = useTransform(smooth, [0.84, 0.98], [0.3, 2.3]);
+  const ringOpacity = useTransform(smooth, [0.83, 0.86, 0.98], [0, 1, 0]);
+  const [step, setStep] = useState(0);
+  const [price, setPrice] = useState(SCENE_START);
+
+  useEffect(() => smooth.on('change', (v) => {
+    setStep(v < 0.33 ? 0 : v < 0.8 ? 1 : 2);
+    const t = Math.min(1, v / 0.8);
+    const raw = SCENE_START + (SCENE_END - SCENE_START) * t;
+    setPrice(Math.round(raw / 50000) * 50000);
+  }), [smooth]);
+
+  return (
+    <section id="como" className="scene" ref={ref} aria-labelledby="como-title">
+      <div className="scene__sticky">
+        <div className="scene__grid">
+          <div className="scene__stage" aria-hidden="true">
+            <motion.span className="scene__ring" style={{ scale: ringScale, opacity: ringOpacity }} />
+            <motion.span className="scene__gavel" style={{ rotate }}><GavelHead /></motion.span>
+            <span className="scene__block" />
+            <div className="scene__price display"><Odometer value={money(price)} label="Precio de ejemplo" /></div>
+          </div>
+          <div className="scene__copy">
+            <h2 id="como-title" className="display">Tres golpes de pulso</h2>
+            <ol>
+              {STEPS.map((s, i) => (
+                <li key={s.title} className={i === step ? 'is-on' : ''}>
+                  <h3>{s.title}</h3>
+                  <p>{s.text}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const GavelHead = () => (
+  <svg viewBox="0 0 200 260" width="100%" height="100%" fill="currentColor" aria-hidden="true">
+    <rect x="30" y="20" width="140" height="82" rx="10" />
+    <rect x="10" y="4" width="30" height="114" rx="10" />
+    <rect x="160" y="4" width="30" height="114" rx="10" />
+    <rect x="86" y="100" width="28" height="160" rx="12" />
+  </svg>
+);
+
+/* Lista tipográfica: la foto del lote sigue al puntero. */
+const Categories = ({ lots, onPick }) => {
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const sx = useSpring(x, spring.pointer);
+  const sy = useSpring(y, spring.pointer);
+  const [hover, setHover] = useState(null);
+  const fine = useMediaQuery('(hover: hover) and (pointer: fine)');
+  const byCat = useMemo(() => {
+    const m = {};
+    lots.forEach((l) => { if (!m[l.categoria] && coverOf(l)) m[l.categoria] = coverOf(l); });
+    return m;
+  }, [lots]);
+  const cats = productService.categorias;
+
+  return (
+    <section id="categorias" className="cats" aria-labelledby="cats-title" onPointerMove={(e) => { x.set(e.clientX); y.set(e.clientY); }}>
+      <h2 id="cats-title" className="display">Qué se está rematando</h2>
+      <ul onPointerLeave={() => setHover(null)}>
+        {cats.map((c, i) => (
+          <motion.li key={c.value} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-40px' }} transition={{ duration: dur.slow, ease: ease.out, delay: i * 0.04 }}>
+            <button type="button" className="cats__row display" onClick={onPick} onPointerEnter={() => setHover(c.value)}>
+              <span>{c.label}</span><FaArrowRight size={26} />
+            </button>
+          </motion.li>
+        ))}
+      </ul>
+      {fine && (
+        <motion.div className="cats__float" style={{ x: sx, y: sy }} aria-hidden="true">
+          <AnimatePresence>
+            {hover && byCat[hover] && (
+              <motion.img key={hover} src={byCat[hover]} alt="" initial={{ opacity: 0, scale: 0.9, rotate: -4 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.12 } }} transition={{ duration: dur.fast, ease: ease.out }} />
+            )}
+          </AnimatePresence>
+        </motion.div>
+      )}
+    </section>
+  );
+};
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const [showCookieBanner, setShowCookieBanner] = useState(true);
-  const [timeLeft, setTimeLeft] = useState({
-    hours: 2,
-    minutes: 58,
-    seconds: 0
+  const { isAuthenticated } = useAuth();
+  const [lots, setLots] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const [cookies, setCookies] = useState(() => {
+    try {
+      return localStorage.getItem('cookiesAccepted') !== 'true';
+    } catch {
+      return false;
+    }
   });
+  const destino = isAuthenticated ? '/dashboard' : '/auth';
+  const goAuth = () => navigate(destino);
 
-  // Countdown timer effect
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(prevTime => {
-        let { hours, minutes, seconds } = prevTime;
-        
-        if (seconds > 0) {
-          seconds--;
-        } else if (minutes > 0) {
-          minutes--;
-          seconds = 59;
-        } else if (hours > 0) {
-          hours--;
-          minutes = 59;
-          seconds = 59;
-        }
-        
-        return { hours, minutes, seconds };
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
+    let alive = true;
+    productService
+      .obtenerSubastas({ limite: 16, estado: 'activo', ordenar: '-numeroOfertas' })
+      .then((r) => {
+        if (!alive) return;
+        setLots(r.data || []);
+        setTotal(r.pagination?.total || 0);
+      })
+      .catch(() => {})
+      .finally(() => alive && setLoaded(true));
+    return () => { alive = false; };
   }, []);
 
-  const handleAcceptCookies = () => {
-    setShowCookieBanner(false);
-    localStorage.setItem('cookiesAccepted', 'true');
+  const deck = useMemo(() => lots.slice(0, 6), [lots]);
+  const closing = useMemo(() => [...lots].sort((a, b) => new Date(a.fechaFin) - new Date(b.fechaFin)).slice(0, 6), [lots]);
+
+  const accept = () => {
+    setCookies(false);
+    try {
+      localStorage.setItem('cookiesAccepted', 'true');
+    } catch {
+      /* el aviso volverá en la próxima visita */
+    }
   };
 
-  useEffect(() => {
-    const cookiesAccepted = localStorage.getItem('cookiesAccepted');
-    if (cookiesAccepted === 'true') {
-      setShowCookieBanner(false);
-    }
-  }, []);
-
   return (
-    <div className="landing-page">
-      {/* Header/Navbar */}
-      <header className="landing-header">
-        <div className="landing-container">
-          <div className="landing-nav">
-            <div className="landing-logo">
-              <div className="logo-icon">
-                <div className="logo-circle">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                    <polyline points="7.5 4.21 12 6.81 16.5 4.21"/>
-                    <polyline points="7.5 19.79 7.5 14.6 3 12"/>
-                    <polyline points="21 12 16.5 14.6 16.5 19.79"/>
-                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-                    <line x1="12" y1="22.08" x2="12" y2="12"/>
-                  </svg>
-                </div>
-              </div>
-              <div className="logo-text">
-                <span className="logo-brand">SUBASTAPP</span>
-              </div>
-            </div>
-
-            <nav className="landing-menu">
-              <a href="#hogar" className="menu-item active">Hogar</a>
-              <a href="#acerca" className="menu-item">Acerca de</a>
-              <a href="#navegar" className="menu-item">Navegar</a>
-              <a href="#blog" className="menu-item">Blog</a>
-              <a href="#contacto" className="menu-item">Contacto</a>
-              <div className="language-selector">
-                <span>Inglés</span>
-                <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
-                  <path d="M1 1L6 6L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </div>
-            </nav>
-
-            <div className="landing-actions">
-              <div className="favorites-badge">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                </svg>
-                <span className="badge-count">0</span>
-              </div>
-              <button className="btn-panel" onClick={() => navigate('/dashboard')}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <rect x="3" y="3" width="7" height="7" strokeWidth="2"/>
-                  <rect x="14" y="3" width="7" height="7" strokeWidth="2"/>
-                  <rect x="3" y="14" width="7" height="7" strokeWidth="2"/>
-                  <rect x="14" y="14" width="7" height="7" strokeWidth="2"/>
-                </svg>
-                Panel
-              </button>
-            </div>
-          </div>
-        </div>
+    <div className="lp">
+      <header className="lp-nav">
+        <Link to="/" className="lp-nav__logo" aria-label="SubastApp, inicio"><Logo /></Link>
+        <nav aria-label="Secciones">
+          <a href="#como">Cómo funciona</a>
+          <a href="#lotes">Lotes</a>
+          <a href="#categorias">Categorías</a>
+        </nav>
+        <Link to={destino} className="btn btn--primary">{isAuthenticated ? 'Ir al panel' : 'Entrar'}</Link>
       </header>
 
-      {/* Hero Section */}
-      <section className="landing-hero">
-        <div className="landing-container">
-          <div className="hero-content">
-            <div className="hero-left">
-              <h1 className="hero-title">
-                Plataforma De<br/>
-                Subastas <br/>
-              </h1>
-              <p className="hero-subtitle">
-                Revolucionando La Excelencia En Las Licitaciones: Donde<br/>
-                Cada Segundo Valioso Cuenta
-              </p>
-              <div className="hero-buttons">
-                <button className="btn-start" onClick={() => navigate('/auth')}>
-                  Empieza Ahora
-                </button>
-                <button className="btn-about" onClick={() => navigate('/auth')}>
-                  Sobre Nosotros
-                </button>
-              </div>
-            </div>
-
-            <div className="hero-right">
-              {/* User Avatars */}
-              <div className="user-avatars">
-                <div className="avatar avatar-1">
-                  <div className="avatar-circle" style={{background: 'linear-gradient(135deg, #fbbf24, #f59e0b)'}}>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                    </svg>
-                  </div>
-                </div>
-                <div className="avatar avatar-2">
-                  <div className="avatar-circle" style={{background: 'linear-gradient(135deg, #94a3b8, #64748b)'}}>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                    </svg>
-                  </div>
-                </div>
-                <div className="avatar avatar-3">
-                  <div className="avatar-circle" style={{background: 'linear-gradient(135deg, #ec4899, #db2777)'}}>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                    </svg>
-                  </div>
-                </div>
-              </div>
-
-              {/* Product Card */}
-              <div className="product-card">
-                {/* Product Images Stack */}
-                <div className="product-images">
-                  <div className="product-image-item image-back">
-                    <div className="image-placeholder">
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="#64748b">
-                        <path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM9 11l2.5 3.01L15 10l4 5H5l4-4z"/>
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="product-image-item image-middle">
-                    <div className="image-placeholder">
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="#64748b">
-                        <path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM9 11l2.5 3.01L15 10l4 5H5l4-4z"/>
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="product-image-item image-front">
-                    <div className="excavator-image">
-                      {/* Excavator SVG Illustration */}
-                      <svg viewBox="0 0 200 140" fill="none" className="excavator-svg">
-                        {/* Excavator Body */}
-                        <rect x="100" y="80" width="60" height="35" fill="#FFA500" rx="3"/>
-                        <rect x="105" y="85" width="15" height="10" fill="#1a1a1a" rx="2"/>
-                        
-                        {/* Excavator Arm */}
-                        <rect x="75" y="70" width="35" height="8" fill="#FFA500" rx="2" transform="rotate(-30 75 70)"/>
-                        <rect x="50" y="48" width="35" height="8" fill="#FFA500" rx="2" transform="rotate(-60 50 48)"/>
-                        
-                        {/* Excavator Bucket */}
-                        <path d="M 30 35 L 20 45 L 25 50 L 35 40 Z" fill="#2a2a2a"/>
-                        <path d="M 20 45 L 15 48 L 18 52 L 25 50 Z" fill="#1a1a1a"/>
-                        
-                        {/* Tracks */}
-                        <rect x="95" y="115" width="70" height="18" fill="#2a2a2a" rx="9"/>
-                        <circle cx="102" cy="124" r="6" fill="#1a1a1a"/>
-                        <circle cx="120" cy="124" r="6" fill="#1a1a1a"/>
-                        <circle cx="138" cy="124" r="6" fill="#1a1a1a"/>
-                        <circle cx="156" cy="124" r="6" fill="#1a1a1a"/>
-                        
-                        {/* Details */}
-                        <circle cx="92" cy="74" r="3" fill="#666"/>
-                        <circle cx="55" cy="52" r="3" fill="#666"/>
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Product Info */}
-                <div className="product-info">
-                  <div className="product-header">
-                    <h3 className="product-title">Large Excavator</h3>
-                    <span className="product-price">$478</span>
-                  </div>
-
-                  <div className="product-stats">
-                    <div className="stat-item">
-                      <span className="stat-label">HIGHEST BID</span>
-                      <div className="stat-value">
-                        <svg width="10" height="10" viewBox="0 0 10 10" fill="#10b981">
-                          <polygon points="5,0 10,10 0,10"/>
-                        </svg>
-                        <span>$145</span>
-                      </div>
-                    </div>
-                    <div className="stat-item">
-                      <span className="stat-label">TOTAL BIDS</span>
-                      <div className="stat-value">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2">
-                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                          <circle cx="9" cy="7" r="4"/>
-                          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                        </svg>
-                        <span>478</span>
-                      </div>
-                    </div>
-                    <div className="stat-item">
-                      <span className="stat-label">TIME LEFT</span>
-                      <div className="stat-value">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10"/>
-                          <polyline points="12 6 12 12 16 14"/>
-                        </svg>
-                        <span>{timeLeft.hours}h {timeLeft.minutes}m</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="product-actions">
-                    <button className="btn-bid-now" onClick={() => navigate('/auth')}>
-                      Bid Now
-                    </button>
-                    <button className="btn-favorite">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+      <main>
+        <section className="hero">
+          <div className="hero__copy">
+            <h1 className="display">
+              <Line delay={0.05}>Cada segundo</Line>
+              <Line delay={0.15}>sube el precio</Line>
+            </h1>
+            <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: dur.slow, ease: ease.out, delay: 0.35 }}>
+              Publica lo que quieras rematar o puja hasta el último segundo. Tú decides hasta dónde llegar.
+            </motion.p>
+            <motion.div className="hero__cta" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: dur.slow, ease: ease.out, delay: 0.43 }}>
+              <button type="button" className="btn btn--primary btn--lg" onClick={goAuth}>Empezar a pujar <FaArrowRight size={13} /></button>
+              {total > 0 && (
+                <a className="hero__count" href="#lotes">
+                  <CountUp value={total} className="display" />
+                  <span>{total === 1 ? 'subasta abierta' : 'subastas abiertas'}</span>
+                </a>
+              )}
+            </motion.div>
           </div>
-        </div>
+          <motion.div className="hero__deck" initial={{ opacity: 0, y: 40, rotate: 3 }} animate={{ opacity: 1, y: 0, rotate: 0 }} transition={{ ...spring.soft, delay: 0.2 }}>
+            {deck.length > 0 ? (
+              <Deck lots={deck} onOpen={goAuth} />
+            ) : (
+              <div className="deck__empty">
+                <Gavel size={140} />
+                {loaded && <p className="muted">El próximo lote puede ser el tuyo.</p>}
+              </div>
+            )}
+          </motion.div>
+        </section>
 
-        {/* Background Effects */}
-        <div className="hero-bg-effects">
-          <div className="glow-effect glow-1"></div>
-          <div className="glow-effect glow-2"></div>
-        </div>
-      </section>
+        {lots.length > 2 && <Ticker lots={lots} />}
 
-      {/* Cookie Banner */}
-      {showCookieBanner && (
-        <div className="cookie-banner">
-          <div className="cookie-content">
-            <p>
-              Utilizamos cookies para mejorar tu experiencia de navegación, ofrecer anuncios o contenidos personalizados y analizar nuestro tráfico. Al hacer clic en "Aceptar", das tu consentimiento para que utilicemos cookies.
-              <a href="#" className="cookie-link">Aprende más</a>
-            </p>
-            <button className="btn-accept-cookies" onClick={handleAcceptCookies}>
-              Aceptar
-            </button>
-          </div>
-        </div>
-      )}
+        <Scene />
+
+        {closing.length > 0 && (
+          <section id="lotes" className="lp-lots" aria-labelledby="lots-title">
+            <h2 id="lots-title" className="display">Cierran pronto</h2>
+            <div className="lot-grid">
+              {closing.map((a, i) => <LotCard key={a._id} auction={a} index={i} onOpen={goAuth} sharedLayout={false} />)}
+            </div>
+          </section>
+        )}
+
+        <Categories lots={lots} onPick={goAuth} />
+
+        <section className="closer">
+          <motion.h2 className="display" initial={{ opacity: 0, y: 28 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.7, ease: ease.out }}>
+            A la una,<br />a las dos…
+          </motion.h2>
+          <Link to={destino} className="btn btn--lg closer__btn">Crear mi cuenta <FaArrowRight size={13} /></Link>
+        </section>
+      </main>
+
+      <footer className="lp-foot">
+        <span className="lp-foot__mark display" aria-hidden="true">Subastapp</span>
+        <p className="muted">Proyecto de subastas en línea · Ocaña, Colombia</p>
+      </footer>
+
+      <AnimatePresence>
+        {cookies && (
+          <motion.aside className="cookie" role="region" aria-label="Aviso de almacenamiento" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12, transition: { duration: dur.exit } }} transition={{ duration: dur.slow, ease: ease.out, delay: 1.2 }}>
+            <p>Guardamos tu sesión y tus preferencias en este navegador.</p>
+            <button type="button" className="btn btn--sm" onClick={accept}>Entendido</button>
+          </motion.aside>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

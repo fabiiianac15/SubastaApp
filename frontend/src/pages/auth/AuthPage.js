@@ -8,16 +8,10 @@ const AuthPage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/dashboard');
-    }
+    if (isAuthenticated) navigate('/dashboard');
   }, [isAuthenticated, navigate]);
 
-  return (
-    <div style={{ height: '100vh', overflow: 'hidden' }}>
-      <AuthForm />
-    </div>
-  );
+  return <AuthForm />;
 };
 
 export default AuthPage;
