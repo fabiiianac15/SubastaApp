@@ -24,7 +24,10 @@ API.interceptors.request.use(
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // Un 401 al iniciar sesión es una credencial incorrecta, no una sesión vencida:
+    // el formulario debe poder mostrar el error sin recargar la página.
+    const esLogin = error.config?.url?.includes('/auth/login');
+    if (error.response?.status === 401 && !esLogin) {
       // Token expirado o inválido
       localStorage.removeItem('token');
       localStorage.removeItem('user');
