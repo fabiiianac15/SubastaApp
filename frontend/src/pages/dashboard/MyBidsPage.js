@@ -22,6 +22,8 @@ const ESTADOS = [
   { value: 'retirada', label: 'Retiradas' },
 ];
 // El modelo de ofertas solo acepta estos métodos de pago.
+// El servidor permite retirar una oferta superada durante 30 minutos.
+const VENTANA_RETIRO = 30 * 60 * 1000;
 const METODO = { tarjeta: 'tarjeta_credito', pse: 'transferencia' };
 
 const MyBidsPage = () => {
@@ -173,7 +175,7 @@ const MyBidsPage = () => {
                   </dl>
                   <div className="row__actions">
                     {ganada && !of.pagado && <button type="button" className="btn btn--primary" onClick={() => setWonBid(of)}><FaCreditCard size={14} /> Pagar</button>}
-                    {of.estado === 'activa' && !lidera && <button type="button" className="btn btn--sm" onClick={() => retirar(of)}>Retirar</button>}
+                    {of.estado === 'superada' && Date.now() - new Date(of.createdAt) < VENTANA_RETIRO && <button type="button" className="btn btn--sm" onClick={() => retirar(of)}>Retirar</button>}
                     <button type="button" className="btn btn--sm btn--ghost" onClick={() => openProduct(p._id)}>Ver ficha</button>
                   </div>
                 </motion.li>

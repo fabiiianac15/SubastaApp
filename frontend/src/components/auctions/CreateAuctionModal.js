@@ -76,8 +76,8 @@ const CreateAuctionModal = ({ isOpen, onClose, auction = null, onSuccess }) => {
 
   const validate = () => {
     const errs = [];
-    if (!formData.titulo.trim()) errs.push('El título es obligatorio');
-    if (!formData.descripcion.trim()) errs.push('La descripción es obligatoria');
+    if (formData.titulo.trim().length < 5) errs.push('El título necesita al menos 5 caracteres');
+    if (formData.descripcion.trim().length < 10) errs.push('La descripción necesita al menos 10 caracteres');
     if (!formData.precioInicial || Number(formData.precioInicial) <= 0) errs.push('El precio inicial debe ser mayor a 0');
     if (!formData.fechaInicio) errs.push('Falta la fecha de inicio');
     if (!formData.fechaFin) errs.push('Falta la fecha de fin');

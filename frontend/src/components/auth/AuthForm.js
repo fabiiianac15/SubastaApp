@@ -144,7 +144,7 @@ const AuthForm = () => {
                   {showPass ? <FaEyeSlash size={15} /> : <FaEye size={15} />}
                 </button>
               </div>
-              {isSignUp && <span id="a-pass-h" className="field__hint">Mínimo 6 caracteres.</span>}
+              {isSignUp && <span id="a-pass-h" className="field__hint">Mínimo 6 caracteres, con mayúscula, minúscula y número.</span>}
             </div>
 
             <AnimatePresence initial={false} mode="popLayout">

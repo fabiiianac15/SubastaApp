@@ -122,7 +122,9 @@ const ProfileModal = ({ isOpen, onClose }) => {
     const { currentPassword, newPassword, confirmPassword } = formData;
     if (!currentPassword || !newPassword || !confirmPassword) return setError('Completa los tres campos de contraseña.');
     if (newPassword !== confirmPassword) return setError('Las contraseñas nuevas no coinciden.');
-    if (newPassword.length < 6) return setError('La contraseña nueva debe tener al menos 6 caracteres.');
+    if (newPassword.length < 6 || !/[a-z]/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      return setError('La contraseña nueva necesita 6 caracteres o más, con mayúscula, minúscula y número.');
+    }
     setLoading(true);
     try {
       const res = await authService.changePassword({ currentPassword, newPassword });

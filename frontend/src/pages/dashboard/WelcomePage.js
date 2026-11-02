@@ -20,8 +20,8 @@ import './WelcomePage.css';
 const money = (n) => productService.formatearMoneda(n);
 
 const FAQ = [
-  ['¿Cómo se gana una subasta?', 'Cada oferta debe superar el precio actual por lo menos en el incremento mínimo del lote. Al cierre, la oferta más alta queda como ganadora.'],
-  ['¿Puedo retirar una oferta?', 'Sí, durante los primeros 30 minutos y solo si ya no es la oferta más alta. Después queda en firme.'],
+  ['¿Cómo se gana una subasta?', 'Cada oferta debe superar el precio actual por lo menos en el incremento mínimo del lote. Al llegar la hora de cierre, la subasta se adjudica sola a la oferta más alta.'],
+  ['¿Puedo retirar una oferta?', 'Sí, durante los primeros 30 minutos y solo si otra persona ya la superó. La oferta más alta no se puede retirar.'],
   ['¿Cuándo pago?', 'Únicamente si ganas. La subasta aparecerá en Mis pujas con el botón para pagar.'],
   ['¿Cómo publico un lote?', 'Con una cuenta de vendedor, entra a Crear subasta, sube hasta cinco fotos y define el precio de salida, el incremento y las fechas.'],
 ];

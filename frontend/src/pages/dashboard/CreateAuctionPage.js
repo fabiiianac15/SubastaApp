@@ -59,7 +59,7 @@ const CreateAuctionPage = () => {
   const validate = (s) => {
     const e = {};
     if (s === 1) {
-      if (!formData.titulo.trim()) e.titulo = 'Ponle un título al lote.';
+      if (formData.titulo.trim().length < 5) e.titulo = 'El título necesita al menos 5 caracteres.';
       if (formData.descripcion.trim().length < 10) e.descripcion = 'Escribe al menos 10 caracteres.';
     }
     if (s === 2 && images.length === 0) e.images = 'Sube al menos una foto.';
@@ -67,6 +67,7 @@ const CreateAuctionPage = () => {
       if (!(Number(formData.precioInicial) > 0)) e.precioInicial = 'El precio de salida debe ser mayor a 0.';
       if (!startNow && !formData.fechaInicio) e.fechaInicio = 'Elige cuándo empieza.';
       if (!formData.fechaFin) e.fechaFin = 'Elige cuándo cierra.';
+      if (!startNow && formData.fechaInicio && new Date(formData.fechaInicio) < new Date(Date.now() - 300000)) e.fechaInicio = 'La fecha de inicio ya pasó.';
       const inicio = startNow ? new Date() : new Date(formData.fechaInicio);
       if (formData.fechaFin && new Date(formData.fechaFin) - inicio < 3600000) e.fechaFin = 'Debe durar al menos 1 hora.';
     }
@@ -98,7 +99,7 @@ const CreateAuctionPage = () => {
       registrarIntentoSubasta(creada?._id || 'nuevo', formData.titulo, formData.categoria, Number(formData.precioInicial) || 0, true, null);
       await Swal.fire({
         title: creada?.estado === 'activo' ? 'Subasta abierta' : 'Subasta programada',
-        text: creada?.estado === 'activo' ? 'Tu lote ya está recibiendo ofertas.' : 'Quedó como borrador. Actívala desde Mis subastas cuando llegue la fecha.',
+        text: creada?.estado === 'activo' ? 'Tu lote ya está recibiendo ofertas.' : 'Se abrirá sola en la fecha de inicio. Mientras tanto la ves en Mis subastas.',
         icon: 'success',
         confirmButtonText: 'Ver mis subastas',
       });
