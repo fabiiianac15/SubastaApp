@@ -1,479 +1,190 @@
-import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FaPlus, 
-  FaEye, 
-  FaEdit, 
-  FaTrash, 
-  FaPause, 
-  FaPlay, 
-  FaStop,
-  FaChartLine,
-  FaUsers,
-  FaClock,
-  FaDollarSign,
-  FaFilter,
-  FaSort
-} from 'react-icons/fa';
-import Layout from '../../components/layout/Layout';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import { FaEdit, FaEye, FaGavel, FaPause, FaPlay, FaPlus, FaStop, FaTrash } from 'react-icons/fa';
+import Swal from 'sweetalert2';
 import productService from '../../services/productService';
 import CreateAuctionModal from '../../components/auctions/CreateAuctionModal';
-import Swal from 'sweetalert2';
-import './MyAuctionsPage.css';
+import AuctionDetailModal from '../../components/auctions/AuctionDetailModal';
+import { Chips, StatusPill, estadoSubasta } from '../../components/ui/Controls';
+import CountUp from '../../components/ui/CountUp';
+import { Countdown } from '../../components/ui/Countdown';
+import { coverOf } from '../../lib/media';
+import { dur, ease } from '../../lib/motion';
+
+const money = (n) => productService.formatearMoneda(n || 0);
+const ESTADOS = [
+  { value: 'todas', label: 'Todas' },
+  { value: 'activo', label: 'Activas' },
+  { value: 'borrador', label: 'Borradores' },
+  { value: 'pausado', label: 'Pausadas' },
+  { value: 'finalizado', label: 'Finalizadas' },
+  { value: 'cancelado', label: 'Canceladas' },
+];
+const ACCIONES = {
+  borrador: [{ icon: FaPlay, label: 'Activar', to: 'activo' }],
+  activo: [{ icon: FaPause, label: 'Pausar', to: 'pausado' }, { icon: FaStop, label: 'Finalizar', to: 'finalizado' }],
+  pausado: [{ icon: FaPlay, label: 'Reanudar', to: 'activo' }],
+};
 
 const MyAuctionsPage = () => {
   const [auctions, setAuctions] = useState([]);
+  const [estadisticas, setEstadisticas] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({});
-  const [filters, setFilters] = useState({
-    estado: 'todas',
-    ordenar: '-createdAt'
-  });
-  const [editingAuction, setEditingAuction] = useState(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [error, setError] = useState('');
+  const [filters, setFilters] = useState({ estado: 'todas', ordenar: '-createdAt' });
+  const [editing, setEditing] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [busy, setBusy] = useState(null);
 
-  useEffect(() => {
-    loadData();
-  }, [filters]);
-
-  const loadData = async () => {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await productService.obtenerMisSubastas(filters);
-      setAuctions(response.data || []);
-      setStats(response.estadisticas || {});
-    } catch (error) {
-      console.error('Error loading auctions:', error);
-      setAuctions([]);
+      setError('');
+      const res = await productService.obtenerMisSubastas({ ...filters, limite: 100 });
+      setAuctions(res.data || []);
+      setEstadisticas(res.estadisticas || []);
+    } catch (e) {
+      setError(e?.message || 'No se pudieron cargar tus subastas.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
 
-  const changeAuctionStatus = async (auctionId, newStatus) => {
-    try {
-      await productService.cambiarEstadoSubasta(auctionId, newStatus);
-      await loadData();
-      Swal.fire({
-        title: '¡Estado Actualizado!',
-        text: `La subasta ahora está ${newStatus}`,
-        icon: 'success',
-        timer: 2000,
-        showConfirmButton: false
-      });
-    } catch (error) {
-      Swal.fire({
-        title: 'Error',
-        text: error.message || 'No se pudo cambiar el estado',
-        icon: 'error'
-      });
-    }
-  };
+  useEffect(() => { load(); }, [load]);
 
-  const handleDelete = async (auction) => {
-    // Verificar si hay ofertas
-    if (auction.numeroOfertas > 0) {
-      const confirmResult = await Swal.fire({
-        title: '⚠️ Esta subasta tiene ofertas',
-        html: `
-          <p>Esta subasta tiene <strong>${auction.numeroOfertas} oferta(s)</strong>.</p>
-          <p>Al eliminarla, también se eliminarán todas las ofertas asociadas.</p>
-          <p><strong>¿Estás seguro de que deseas continuar?</strong></p>
-        `,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, eliminar todo',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#e53e3e',
-        cancelButtonColor: '#718096',
-        focusCancel: true
-      });
-
-      if (!confirmResult.isConfirmed) {
-        return;
-      }
-
-      // Segunda confirmación
-      const finalResult = await Swal.fire({
-        title: '¿Estás completamente seguro?',
-        text: 'Esta acción no se puede deshacer',
-        icon: 'error',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, eliminar definitivamente',
-        cancelButtonText: 'No, conservar',
-        confirmButtonColor: '#e53e3e'
-      });
-
-      if (!finalResult.isConfirmed) {
-        return;
-      }
-
-      try {
-        // Forzar eliminación aunque haya ofertas
-        await productService.eliminarSubasta(auction._id, true);
-        await loadData();
-        Swal.fire({
-          title: 'Eliminada',
-          text: 'La subasta y todas sus ofertas fueron eliminadas',
-          icon: 'success',
-          timer: 2000,
-          showConfirmButton: false
-        });
-      } catch (error) {
-        Swal.fire({
-          title: 'Error',
-          text: error.message || 'No se pudo eliminar la subasta',
-          icon: 'error'
-        });
-      }
-    } else {
-      // Si no hay ofertas, confirmación simple
-      const result = await Swal.fire({
-        title: '¿Eliminar subasta?',
-        text: 'Esta acción no se puede deshacer',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#e53e3e'
-      });
-
-      if (result.isConfirmed) {
-        try {
-          await productService.eliminarSubasta(auction._id);
-          await loadData();
-          Swal.fire({
-            title: 'Eliminada',
-            text: 'La subasta fue eliminada exitosamente',
-            icon: 'success',
-            timer: 2000,
-            showConfirmButton: false
-          });
-        } catch (error) {
-          Swal.fire({
-            title: 'Error',
-            text: error.message || 'No se pudo eliminar la subasta',
-            icon: 'error'
-          });
-        }
-      }
-    }
-  };
-
-  const handleEdit = (auction) => {
-    console.log('=== DEBUG EDICIÓN ===');
-    console.log('Subasta a editar:', auction);
-    console.log('ID de la subasta:', auction._id);
-    console.log('Tipo de ID:', typeof auction._id);
-    console.log('Longitud del ID:', auction._id?.length);
-    
-    setEditingAuction(auction);
-  };
-
-  const handleModalClose = () => {
-    setShowCreateModal(false);
-    setEditingAuction(null);
-  };
-
-  const handleModalSuccess = () => {
-    loadData();
-    handleModalClose();
-  };
-
-  const getStatusColor = (status) => {
-    const colors = {
-      borrador: '#718096',
-      activo: '#38a169',
-      pausado: '#ed8936',
-      finalizado: '#3182ce',
-      cancelado: '#e53e3e'
+  // Las estadísticas vienen del servidor: no cambian al filtrar la lista.
+  const stats = useMemo(() => {
+    const by = Object.fromEntries((estadisticas || []).map((s) => [s._id, s]));
+    return {
+      total: (estadisticas || []).reduce((n, s) => n + s.count, 0),
+      activas: by.activo?.count || 0,
+      vendido: by.finalizado?.totalVentas || 0,
     };
-    return colors[status] || '#718096';
-  };
+  }, [estadisticas]);
 
-  const getStatusActions = (auction) => {
-    const actions = [];
-    
-    switch (auction.estado) {
-      case 'borrador':
-        actions.push({ 
-          icon: FaPlay, 
-          label: 'Activar', 
-          color: '#38a169',
-          action: () => changeAuctionStatus(auction._id, 'activo')
-        });
-        break;
-      case 'activo':
-        actions.push({ 
-          icon: FaPause, 
-          label: 'Pausar', 
-          color: '#ed8936',
-          action: () => changeAuctionStatus(auction._id, 'pausado')
-        });
-        actions.push({ 
-          icon: FaStop, 
-          label: 'Finalizar', 
-          color: '#3182ce',
-          action: () => changeAuctionStatus(auction._id, 'finalizado')
-        });
-        break;
-      case 'pausado':
-        actions.push({ 
-          icon: FaPlay, 
-          label: 'Reanudar', 
-          color: '#38a169',
-          action: () => changeAuctionStatus(auction._id, 'activo')
-        });
-        break;
+  const changeStatus = async (a, estado) => {
+    if (estado === 'finalizado') {
+      const c = await Swal.fire({ title: '¿Finalizar ahora?', text: 'La oferta más alta quedará como ganadora.', icon: 'warning', showCancelButton: true, confirmButtonText: 'Finalizar', cancelButtonText: 'Seguir abierta', focusCancel: true });
+      if (!c.isConfirmed) return;
     }
-    
-    return actions;
+    try {
+      setBusy(a._id);
+      await productService.cambiarEstadoSubasta(a._id, estado);
+      await load();
+    } catch (e) {
+      Swal.fire('No se pudo cambiar el estado', e.message || 'Inténtalo de nuevo.', 'error');
+    } finally {
+      setBusy(null);
+    }
   };
 
-  const AuctionCard = ({ auction }) => {
-    const STATIC_BASE = (process.env.REACT_APP_API_URL?.replace('/api','')) || 'http://localhost:5000';
-    const timeRemaining = productService.calcularTiempoRestante(auction.fechaFin);
-    const statusActions = getStatusActions(auction);
-    
-    return (
-      <motion.div
-        className="my-auction-card"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        whileHover={{ y: -5 }}
-        transition={{ duration: 0.3 }}
-      >
-        <div className="auction-image-section">
-          {auction.imagenes && auction.imagenes.length > 0 ? (
-            <img
-              src={auction.imagenes[0].url?.startsWith('http') 
-                ? auction.imagenes[0].url 
-                : `${STATIC_BASE}${auction.imagenes[0].url}`}
-              alt={auction.titulo}
-              className="auction-image"
-              onError={(e) => { e.target.src = '/logo512.png'; }}
-            />
-          ) : (
-            <div className="auction-placeholder">
-              <FaEye />
-            </div>
-          )}
-          
-          <div 
-            className="status-badge" 
-            style={{ backgroundColor: getStatusColor(auction.estado) }}
-          >
-            {auction.estado}
-          </div>
-        </div>
-        
-        <div className="auction-details">
-          <h3 className="auction-title">{auction.titulo}</h3>
-          <p className="auction-category">{auction.categoria}</p>
-          
-          <div className="auction-metrics">
-            <div className="metric">
-              <FaDollarSign />
-              <div>
-                <span className="metric-value">
-                  {productService.formatearMoneda(auction.precioActual || auction.precioInicial)}
-                </span>
-                <span className="metric-label">Precio actual</span>
-              </div>
-            </div>
-            
-            <div className="metric">
-              <FaUsers />
-              <div>
-                <span className="metric-value">{auction.numeroOfertas || 0}</span>
-                <span className="metric-label">Ofertas</span>
-              </div>
-            </div>
-            
-            <div className="metric">
-              <FaEye />
-              <div>
-                <span className="metric-value">{auction.vistas || 0}</span>
-                <span className="metric-label">Vistas</span>
-              </div>
-            </div>
-            
-            {timeRemaining && timeRemaining.total > 0 && (
-              <div className="metric">
-                <FaClock />
-                <div>
-                  <span className="metric-value">
-                    {productService.formatearTiempo(timeRemaining)}
-                  </span>
-                  <span className="metric-label">Restante</span>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <div className="auction-actions">
-            <button className="action-btn view" title="Ver detalles">
-              <FaEye />
-            </button>
-            
-            <button 
-              className="action-btn edit" 
-              onClick={() => handleEdit(auction)}
-              title="Editar"
-            >
-              <FaEdit />
-            </button>
-            
-            {statusActions.map((action, index) => (
-              <button 
-                key={index}
-                className="action-btn status"
-                style={{ color: action.color }}
-                onClick={action.action}
-                title={action.label}
-              >
-                <action.icon />
-              </button>
-            ))}
-            
-            <button 
-              className="action-btn delete" 
-              onClick={() => handleDelete(auction)}
-              title={auction.numeroOfertas > 0 ? `Eliminar (${auction.numeroOfertas} ofertas)` : "Eliminar"}
-            >
-              <FaTrash />
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    );
+  const handleDelete = async (a) => {
+    const conOfertas = a.numeroOfertas > 0;
+    const c = await Swal.fire({
+      title: conOfertas ? 'Esta subasta tiene ofertas' : '¿Eliminar subasta?',
+      text: conOfertas ? `Se borrarán también sus ${a.numeroOfertas} ofertas. No se puede deshacer.` : 'Esta acción no se puede deshacer.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: conOfertas ? 'Sí, eliminar todo' : 'Eliminar',
+      cancelButtonText: 'Conservar',
+      focusCancel: true,
+    });
+    if (!c.isConfirmed) return;
+    if (conOfertas) {
+      const again = await Swal.fire({ title: '¿Seguro?', text: 'Última confirmación: los postores perderán sus ofertas.', icon: 'error', showCancelButton: true, confirmButtonText: 'Eliminar definitivamente', cancelButtonText: 'No, conservar', focusCancel: true });
+      if (!again.isConfirmed) return;
+    }
+    try {
+      await productService.eliminarSubasta(a._id, conOfertas);
+      setAuctions((p) => p.filter((x) => x._id !== a._id));
+      await load();
+    } catch (e) {
+      Swal.fire('No se pudo eliminar', e.message || 'Inténtalo de nuevo.', 'error');
+    }
   };
-
-  const StatsCard = ({ icon: Icon, title, value, color }) => (
-    <div className="stats-card">
-      <div className="stats-icon" style={{ backgroundColor: color }}>
-        <Icon />
-      </div>
-      <div className="stats-content">
-        <div className="stats-value">{value}</div>
-        <div className="stats-title">{title}</div>
-      </div>
-    </div>
-  );
 
   return (
-    <Layout currentPage="my-auctions">
-      <div className="my-auctions-page">
-        <div className="page-header">
-          <div className="header-content">
-            <h1>Mis Subastas</h1>
-            <p>Gestiona y monitorea tus subastas activas</p>
-          </div>
-          
-          <button className="create-auction-btn" onClick={() => setShowCreateModal(true)}>
-            <FaPlus />
-            Nueva Subasta
-          </button>
-        </div>
+    <div className="page">
+      <header className="page-head">
+        <h1 className="display">Mis subastas</h1>
+        <Link className="btn btn--primary btn--lg" to="/dashboard/create"><FaPlus size={14} /> Nueva subasta</Link>
+      </header>
 
-        {/* Statistics */}
-        <div className="stats-section">
-          <StatsCard 
-            icon={FaChartLine}
-            title="Total Subastas"
-            value={auctions.length}
-            color="#667eea"
-          />
-          <StatsCard 
-            icon={FaPlay}
-            title="Activas"
-            value={auctions.filter(a => a.estado === 'activo').length}
-            color="#38a169"
-          />
-          <StatsCard 
-            icon={FaUsers}
-            title="Total Ofertas"
-            value={auctions.reduce((sum, a) => sum + (a.numeroOfertas || 0), 0)}
-            color="#ed8936"
-          />
-          <StatsCard 
-            icon={FaDollarSign}
-            title="Valor Total"
-            value={`$${auctions.reduce((sum, a) => sum + (a.precioActual || a.precioInicial || 0), 0).toLocaleString()}`}
-            color="#e53e3e"
-          />
-        </div>
-
-        {/* Filters */}
-        <div className="filters-section">
-          <div className="filter-group">
-            <FaFilter />
-            <select 
-              value={filters.estado}
-              onChange={(e) => setFilters(prev => ({ ...prev, estado: e.target.value }))}
-            >
-              <option value="todas">Todos los estados</option>
-              <option value="borrador">Borradores</option>
-              <option value="activo">Activas</option>
-              <option value="pausado">Pausadas</option>
-              <option value="finalizado">Finalizadas</option>
-              <option value="cancelado">Canceladas</option>
-            </select>
-          </div>
-          
-          <div className="filter-group">
-            <FaSort />
-            <select 
-              value={filters.ordenar}
-              onChange={(e) => setFilters(prev => ({ ...prev, ordenar: e.target.value }))}
-            >
-              <option value="-createdAt">Más recientes</option>
-              <option value="createdAt">Más antiguas</option>
-              <option value="-numeroOfertas">Más ofertas</option>
-              <option value="-precioActual">Mayor precio</option>
-              <option value="fechaFin">Terminan pronto</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Auctions Grid */}
-        <div className="auctions-content">
-          {loading ? (
-            <div className="loading-grid">
-              {Array.from({length: 6}).map((_, i) => (
-                <div key={i} className="auction-skeleton" />
-              ))}
-            </div>
-          ) : auctions.length > 0 ? (
-            <div className="auctions-grid">
-              <AnimatePresence>
-                {auctions.map(auction => (
-                  <AuctionCard key={auction._id} auction={auction} />
-                ))}
-              </AnimatePresence>
-            </div>
-          ) : (
-            <div className="no-auctions">
-              <FaChartLine className="no-auctions-icon" />
-              <h3>No tienes subastas</h3>
-              <p>¡Crea tu primera subasta y comienza a vender!</p>
-              <button className="create-first-auction-btn" onClick={() => setShowCreateModal(true)}>
-                <FaPlus />
-                Crear Primera Subasta
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Modal de Crear/Editar Subasta */}
-        <CreateAuctionModal
-          isOpen={showCreateModal || !!editingAuction}
-          onClose={handleModalClose}
-          auction={editingAuction}
-          onSuccess={handleModalSuccess}
-        />
+      <div className="metrics">
+        <div className="metric metric--accent"><CountUp value={stats.activas} className="metric__value" /><span className="metric__label">Activas</span></div>
+        <div className="metric"><CountUp value={stats.total} className="metric__value" /><span className="metric__label">Publicadas en total</span></div>
+        <div className="metric"><CountUp value={stats.vendido} format={money} className="metric__value" /><span className="metric__label">Valor de las finalizadas</span></div>
       </div>
-    </Layout>
+
+      <div className="explore__filters">
+        <Chips id="my-state" label="Estado" value={filters.estado} onChange={(v) => setFilters((f) => ({ ...f, estado: v }))} options={ESTADOS} />
+        <div className="toolbar">
+          <div className="toolbar__spacer" />
+          <select className="select" aria-label="Ordenar" value={filters.ordenar} onChange={(e) => setFilters((f) => ({ ...f, ordenar: e.target.value }))}>
+            <option value="-createdAt">Más recientes</option>
+            <option value="createdAt">Más antiguas</option>
+            <option value="-numeroOfertas">Más ofertas</option>
+            <option value="-precioActual">Mayor precio</option>
+            <option value="fechaFin">Cierran antes</option>
+          </select>
+        </div>
+      </div>
+
+      {error && <p className="alert alert--error" role="alert">{error}</p>}
+
+      {loading && auctions.length === 0 ? (
+        <div className="rows" aria-hidden="true">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton" style={{ height: 112 }} />)}</div>
+      ) : auctions.length === 0 ? (
+        <div className="empty">
+          <FaGavel size={36} className="empty__art" />
+          <h2 className="display">{filters.estado === 'todas' ? 'Aún no has publicado' : 'Nada en este estado'}</h2>
+          {filters.estado === 'todas' && (<><p>Sube fotos, define el precio de salida y abre tu primera subasta.</p><Link className="btn btn--primary" to="/dashboard/create"><FaPlus size={13} /> Crear subasta</Link></>)}
+        </div>
+      ) : (
+        <ul className={`rows ${loading ? 'is-stale' : ''}`}>
+          <AnimatePresence mode="popLayout" initial={true}>
+            {auctions.map((a, i) => (
+              <motion.li
+                key={a._id}
+                layout="position"
+                className="row"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.98, transition: { duration: dur.exit } }}
+                transition={{ duration: 0.36, ease: ease.out, delay: Math.min(i, 8) * 0.04 }}
+              >
+                <button type="button" className="row__media" onClick={() => setSelected(a)} aria-label={`Abrir ${a.titulo}`}>
+                  {coverOf(a) ? <img src={coverOf(a)} alt="" /> : <FaGavel size={22} />}
+                </button>
+                <div className="row__main">
+                  <h2 className="row__title">{a.titulo}</h2>
+                  <p className="row__sub muted tnum">
+                    {a.numeroOfertas || 0} {a.numeroOfertas === 1 ? 'oferta' : 'ofertas'} · {a.vistas || 0} vistas
+                    {a.estado === 'activo' && <> · Cierra en <Countdown end={a.fechaFin} /></>}
+                  </p>
+                  <StatusPill map={estadoSubasta} value={a.estado} />
+                </div>
+                <dl className="row__nums tnum">
+                  <div><dt>Precio actual</dt><dd className="display">{money(a.precioActual ?? a.precioInicial)}</dd></div>
+                </dl>
+                <div className="row__icons">
+                  <button type="button" className="icon-btn" onClick={() => setSelected(a)} aria-label={`Ver ${a.titulo}`} title="Ver ficha"><FaEye size={15} /></button>
+                  <button type="button" className="icon-btn" onClick={() => setEditing(a)} aria-label={`Editar ${a.titulo}`} title="Editar"><FaEdit size={15} /></button>
+                  {(ACCIONES[a.estado] || []).map((act) => (
+                    <button key={act.to} type="button" className="icon-btn" disabled={busy === a._id} onClick={() => changeStatus(a, act.to)} aria-label={`${act.label} ${a.titulo}`} title={act.label}><act.icon size={14} /></button>
+                  ))}
+                  <button type="button" className="icon-btn icon-btn--danger" onClick={() => handleDelete(a)} aria-label={`Eliminar ${a.titulo}`} title="Eliminar"><FaTrash size={14} /></button>
+                </div>
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ul>
+      )}
+
+      <CreateAuctionModal isOpen={!!editing} onClose={() => setEditing(null)} auction={editing} onSuccess={load} />
+      <AuctionDetailModal open={!!selected} auction={selected} onClose={() => setSelected(null)} />
+    </div>
   );
 };
 

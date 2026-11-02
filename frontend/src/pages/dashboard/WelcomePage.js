@@ -1,695 +1,243 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FaGavel, 
-  FaTrophy, 
-  FaUsers, 
-  FaChartLine, 
-  FaPlus,
-  FaStar,
-  FaClock,
-  FaChevronDown,
-  FaChevronUp,
-  FaQuestionCircle,
-  FaShieldAlt,
-  FaHandshake,
-  FaRocket,
-  FaGem,
-  FaCrown,
-  FaEye,
-  FaFire
-} from 'react-icons/fa';
-import { useAuth } from '../../context/AuthContext';
-import Layout from '../../components/layout/Layout';
-import CreateAuctionModal from '../../components/auctions/CreateAuctionModal';
-import AuctionDetailModal from '../../components/auctions/AuctionDetailModal';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { FaArrowRight, FaChevronDown, FaEdit, FaGavel, FaPlus, FaTrash } from 'react-icons/fa';
 import Swal from 'sweetalert2';
+import { useAuth } from '../../context/AuthContext';
+import AuctionDetailModal from '../../components/auctions/AuctionDetailModal';
+import CreateAuctionModal from '../../components/auctions/CreateAuctionModal';
+import LotCard from '../../components/ui/LotCard';
+import { LotSkeletons } from '../../components/ui/Controls';
+import CountUp from '../../components/ui/CountUp';
+import { CountdownBig } from '../../components/ui/Countdown';
+import Odometer from '../../components/ui/Odometer';
 import productService from '../../services/productService';
+import { useFavorites } from '../../hooks/useFavorites';
+import { coverOf, idOf } from '../../lib/media';
+import { dur, ease, fadeUp } from '../../lib/motion';
 import './WelcomePage.css';
 
-// Componente para la tarjeta de subasta mejorada
-function AuctionCard({ auction, user, onEdit, onDelete, onView }) {
-  const STATIC_BASE = (process.env.REACT_APP_API_URL && process.env.REACT_APP_API_URL.replace('/api', '')) || 'http://localhost:5000';
-  const [activeImg, setActiveImg] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(null);
-  const isOwner = !!(user && user.tipoUsuario === 'vendedor' && auction.vendedor && (
-    String(user._id || user.id) === String(auction.vendedor._id || auction.vendedor.id || auction.vendedor)
-  ));
-  const images = auction.imagenes && auction.imagenes.length > 0 ? auction.imagenes : [];
-  
-  // Actualizar tiempo restante cada segundo
-  useEffect(() => {
-    if (!auction.fechaFin) return;
-    
-    const updateTimer = () => {
-      const remaining = productService.calcularTiempoRestante(auction.fechaFin);
-      setTimeRemaining(remaining);
-    };
-    
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-    
-    return () => clearInterval(interval);
-  }, [auction.fechaFin]);
-  
-  return (
-    <motion.div
-      className={`auction-card ${auction.featured ? 'featured' : ''}`}
-      initial={{ opacity: 0, y: 30 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
-      viewport={{ once: true }}
-      whileHover={{ y: -10 }}
-    >
-      {auction.featured && (
-        <div className="featured-badge">
-          <FaStar />
-          Destacado
-        </div>
-      )}
-      
-      {/* Carrousel de imágenes mejorado */}
-      <div className="wp-auction-image">
-        {images.length > 0 ? (
-          <div className="carousel-container">
-            <img
-              src={images[activeImg].url?.startsWith('http')
-                ? images[activeImg].url
-                : `${STATIC_BASE}${images[activeImg].url}`}
-              alt={`${auction.titulo} - imagen ${activeImg + 1}`}
-              className="carousel-img"
-              onError={(e) => {
-                const tried = e.target.getAttribute('data-tried-fallback');
-                if (!tried) {
-                  e.target.setAttribute('data-tried-fallback', '1');
-                  e.target.src = '/logo512.png';
-                }
-              }}
-            />
-            
-            {images.length > 1 && (
-              <>
-                <div className="carousel-controls">
-                  <button 
-                    className="carousel-arrow left"
-                    onClick={e => {
-                      e.stopPropagation(); 
-                      setActiveImg((activeImg - 1 + images.length) % images.length);
-                    }}
-                    aria-label="Imagen anterior"
-                  >
-                    ‹
-                  </button>
-                  <button 
-                    className="carousel-arrow right"
-                    onClick={e => {
-                      e.stopPropagation(); 
-                      setActiveImg((activeImg + 1) % images.length);
-                    }}
-                    aria-label="Siguiente imagen"
-                  >
-                    ›
-                  </button>
-                  <span className="carousel-counter">{activeImg + 1}/{images.length}</span>
-                </div>
-                
-                {/* Indicadores de imagen */}
-                <div className="image-indicators">
-                  {images.map((_, index) => (
-                    <button
-                      key={index}
-                      className={`indicator ${index === activeImg ? 'active' : ''}`}
-                      onClick={e => {
-                        e.stopPropagation();
-                        setActiveImg(index);
-                      }}
-                      aria-label={`Ir a imagen ${index + 1}`}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="image-placeholder">
-            <FaGavel />
-            <span>Sin imagen</span>
-          </div>
-        )}
-        <div className="category-tag">{auction.categoria}</div>
-        {timeRemaining && timeRemaining.total > 0 && (
-          <div className="time-badge">
-            <FaClock />
-            {productService.formatearTiempo(timeRemaining)}
-          </div>
-        )}
+const money = (n) => productService.formatearMoneda(n);
 
-        {/* Acciones en overlay: ver, editar y eliminar */}
-        <div className="overlay-actions">
-          <button className="overlay-button view" onClick={onView} title="Ver detalles">
-            <FaEye />
-            <span>Ver</span>
-          </button>
-          {isOwner && (
-            <>
-              <button className="overlay-button edit" onClick={() => onEdit(auction)} title="Editar">
-                Editar
+const FAQ = [
+  ['¿Cómo se gana una subasta?', 'Cada oferta debe superar el precio actual por lo menos en el incremento mínimo del lote. Al cierre, la oferta más alta queda como ganadora.'],
+  ['¿Puedo retirar una oferta?', 'Sí, durante los primeros 30 minutos y solo si ya no es la oferta más alta. Después queda en firme.'],
+  ['¿Cuándo pago?', 'Únicamente si ganas. La subasta aparecerá en Mis pujas con el botón para pagar.'],
+  ['¿Cómo publico un lote?', 'Con una cuenta de vendedor, entra a Crear subasta, sube hasta cinco fotos y define el precio de salida, el incremento y las fechas.'],
+];
+
+const Faq = () => {
+  const [open, setOpen] = useState(0);
+  return (
+    <div className="faq">
+      {FAQ.map(([q, a], i) => {
+        const on = open === i;
+        return (
+          <div key={q} className={`faq__item ${on ? 'is-open' : ''}`}>
+            <h3>
+              <button type="button" aria-expanded={on} onClick={() => setOpen(on ? -1 : i)}>
+                <span>{q}</span>
+                <FaChevronDown size={13} className="faq__chev" />
               </button>
-              <button
-                className="overlay-button delete"
-                onClick={(e) => onDelete(auction, e)}
-                title="Eliminar"
-              >
-                Eliminar
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-      
-      <div className="auction-info">
-        <h4>{auction.titulo}</h4>
-        <div className="auction-meta">
-          <div className="current-bid">
-            <span className="label">Oferta actual:</span>
-            <span className="value">
-              {productService.formatearMoneda(auction.precioActual || auction.precioInicial || 0)}
-            </span>
+            </h3>
+            <div className="faq__panel"><div><p>{a}</p></div></div>
           </div>
-          <div className="auction-stats">
-            <div className="stat">
-              <FaClock />
-              {timeRemaining ? (
-                timeRemaining.total > 0 ? 
-                  productService.formatearTiempo(timeRemaining) : 
-                  'Finalizada'
-              ) : 'Cargando...'}
-            </div>
-            <div className="stat">
-              <FaUsers />
-              {auction.numeroOfertas || 0} ofertas
-            </div>
-          </div>
-        </div>
-        {/* Las acciones principales están en el overlay para mayor visibilidad */}
-      </div>
-    </motion.div>
+        );
+      })}
+    </div>
   );
-}
+};
 
 const WelcomePage = () => {
   const { user } = useAuth();
-  const [activeAccordion, setActiveAccordion] = useState(null);
-  const [visibleSection, setVisibleSection] = useState('hero');
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editAuction, setEditAuction] = useState(null);
+  const { favorites, toggle } = useFavorites();
+  const esVendedor = user?.tipoUsuario === 'vendedor';
   const [subastas, setSubastas] = useState([]);
-  const [selectedAuction, setSelectedAuction] = useState(null);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [statsData, setStatsData] = useState({
-    totalSubastas: 0,
-    totalUsuarios: 0,
-    satisfaccion: 98,
-    transacciones: 0
-  });
+  const [error, setError] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [mine, setMine] = useState(null);
 
-  // Datos de estadísticas dinámicas
-  const stats = [
-    { icon: FaGavel, value: statsData.totalSubastas.toLocaleString() + '+', label: 'Subastas Activas', color: '#667eea' },
-    { icon: FaUsers, value: '15,000+', label: 'Usuarios Activos', color: '#38a169' },
-    { icon: FaTrophy, value: statsData.satisfaccion + '%', label: 'Satisfacción', color: '#ed8936' },
-    { icon: FaChartLine, value: '$2.5M+', label: 'Transacciones', color: '#e53e3e' }
-  ];
-
-  // Función para cargar subastas
-  const cargarSubastas = async () => {
+  const cargar = useCallback(async () => {
     try {
-      setLoading(true);
-      const response = await productService.obtenerSubastas({
-        limite: 8,
-        estado: 'activo',
-        ordenar: '-numeroOfertas'
-      });
-      
-      // Agregar imágenes de prueba si no las tienen
-      const subastas = response.data?.map((subasta, index) => ({
-        ...subasta,
-        featured: index === 0, // Marcar la primera como destacada
-        imagenes: subasta.imagenes?.length > 0 ? subasta.imagenes : [
-          {
-            url: `/uploads/products/product-1758258006100-508408191.jpeg`,
-            alt: `${subasta.titulo} - imagen 1`,
-            esPortada: true
-          },
-          {
-            url: `/uploads/products/product-1758258006288-233267476.jpg`,
-            alt: `${subasta.titulo} - imagen 2`,
-            esPortada: false
-          },
-          {
-            url: `/uploads/products/product-1758258045170-11283485.jpeg`,
-            alt: `${subasta.titulo} - imagen 3`,
-            esPortada: false
-          }
-        ]
-      })) || [];
-      
-      setSubastas(subastas);
-      setStatsData(prev => ({
-        ...prev,
-        totalSubastas: response.pagination?.total || 0
-      }));
-    } catch (error) {
-      console.error('Error cargando subastas:', error);
-      setSubastas([]);
+      setError(false);
+      const res = await productService.obtenerSubastas({ limite: 60, estado: 'activo', ordenar: 'fechaFin' });
+      setSubastas(res.data || []);
+      setTotal(res.pagination?.total || 0);
+    } catch (e) {
+      console.error('Error cargando subastas:', e);
+      setError(true);
     } finally {
       setLoading(false);
     }
-  };
-
-  // Cargar subastas al montar el componente
-  useEffect(() => {
-    cargarSubastas();
   }, []);
 
-  // FAQ data
-  const faqData = [
-    {
-      question: '¿Cómo funciona el sistema de subastas?',
-      answer: 'Nuestro sistema permite a los vendedores publicar productos y a los compradores hacer ofertas en tiempo real. La oferta más alta al finalizar el tiempo gana la subasta.'
-    },
-    {
-      question: '¿Es seguro comprar en SubastaApp?',
-      answer: 'Sí, todas las transacciones están protegidas por nuestro sistema de garantías. Verificamos tanto vendedores como compradores para asegurar transacciones seguras.'
-    },
-    {
-      question: '¿Cómo puedo vender mis productos?',
-      answer: 'Si eres vendedor registrado, puedes crear una nueva subasta desde tu dashboard. Solo necesitas subir fotos, describir el producto y establecer el precio inicial.'
-    },
-    {
-      question: '¿Qué métodos de pago aceptan?',
-      answer: 'Aceptamos tarjetas de crédito, débito, PayPal y transferencias bancarias. Todos los pagos son procesados de forma segura.'
-    },
-    {
-      question: '¿Puedo cancelar una oferta?',
-      answer: 'Las ofertas son vinculantes, pero puedes contactar al soporte dentro de los primeros 30 minutos para casos especiales.'
+  useEffect(() => { cargar(); }, [cargar]);
+
+  useEffect(() => {
+    let alive = true;
+    const req = esVendedor ? productService.obtenerMisSubastas({ estado: 'activo', limite: 1 }) : productService.obtenerMisOfertas({ estado: 'activa', limite: 1 });
+    req.then((r) => alive && setMine(r.pagination?.total ?? 0)).catch(() => alive && setMine(null));
+    return () => { alive = false; };
+  }, [esVendedor]);
+
+  const featured = subastas[0];
+  const closing = useMemo(() => subastas.slice(1, 9), [subastas]);
+  const popular = useMemo(() => [...subastas].sort((a, b) => (b.numeroOfertas || 0) - (a.numeroOfertas || 0)).slice(0, 8), [subastas]);
+  const counts = useMemo(() => {
+    const m = {};
+    subastas.forEach((s) => { m[s.categoria] = (m[s.categoria] || 0) + 1; });
+    return productService.categorias.map((c) => ({ ...c, n: m[c.value] || 0 })).filter((c) => c.n > 0).sort((a, b) => b.n - a.n);
+  }, [subastas]);
+
+  const isOwner = (a) => esVendedor && String(idOf(a.vendedor) || a.vendedor) === String(user?._id || user?.id);
+
+  const onDelete = async (a) => {
+    const c = await Swal.fire({ title: '¿Eliminar subasta?', text: 'Esta acción no se puede deshacer.', icon: 'warning', showCancelButton: true, confirmButtonText: 'Eliminar', cancelButtonText: 'Conservar', focusCancel: true });
+    if (!c.isConfirmed) return;
+    try {
+      await productService.eliminarSubasta(a._id);
+      setSubastas((p) => p.filter((s) => s._id !== a._id));
+    } catch (err) {
+      Swal.fire('No se pudo eliminar', err?.message || 'Inténtalo de nuevo.', 'error');
     }
-  ];
-
-  // Categorías populares
-  const categories = [
-    { name: 'Tecnología', icon: '📱', count: 245, color: '#667eea' },
-    { name: 'Arte', icon: '🎨', count: 128, color: '#ed8936' },
-    { name: 'Moda', icon: '👔', count: 189, color: '#e53e3e' },
-    { name: 'Hogar', icon: '🏠', count: 167, color: '#38a169' },
-    { name: 'Deportes', icon: '⚽', count: 98, color: '#3182ce' },
-    { name: 'Vehículos', icon: '🚗', count: 76, color: '#805ad5' }
-  ];
-
-  // Detectar sección visible
-  useEffect(() => {
-    const handleScroll = () => {
-      const sections = ['hero', 'stats', 'auctions', 'categories', 'faq'];
-      const scrollPosition = window.scrollY + 100;
-
-      for (const section of sections) {
-        const element = document.getElementById(section);
-        if (element) {
-          const { offsetTop, offsetHeight } = element;
-          if (scrollPosition >= offsetTop && scrollPosition < offsetTop + offsetHeight) {
-            setVisibleSection(section);
-            break;
-          }
-        }
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const toggleAccordion = (index) => {
-    setActiveAccordion(activeAccordion === index ? null : index);
   };
+
+  const ownerFooter = (a) => isOwner(a) ? (
+    <>
+      <button type="button" className="btn btn--sm" onClick={() => setEditing(a)}><FaEdit size={12} /> Editar</button>
+      <button type="button" className="btn btn--sm btn--danger" onClick={() => onDelete(a)}><FaTrash size={12} /> Eliminar</button>
+    </>
+  ) : null;
+
+  const card = (a, i) => (
+    <LotCard key={a._id} auction={a} index={i} isFavorite={favorites.has(a._id)} onToggleFavorite={toggle} onOpen={setSelected} footer={ownerFooter(a)} />
+  );
 
   return (
-    <Layout currentPage="home">
-      <div className="welcome-page">
-        {/* Hero Section */}
-        <motion.section 
-          id="hero"
-          className="hero-section"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1 }}
-        >
-          <div className="hero-background">
-            <div className="hero-pattern"></div>
-          </div>
-          
-          <div className="hero-content">
-            <motion.div 
-              className="hero-text"
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-            >
-              <h1>
-                Bienvenido, <span className="highlight">{user?.nombre}</span>
-                <FaCrown className="crown-icon" />
-              </h1>
-              <p className="hero-subtitle">
-                Descubre oportunidades únicas en el mundo de las subastas online
-              </p>
-              <div className="user-type-badge">
-                <FaGem className="gem-icon" />
-                {user?.tipoUsuario === 'vendedor' ? 'Vendedor Premium' : 'Comprador Elite'}
-              </div>
-            </motion.div>
+    <div className="page home">
+      <header className="home__hello">
+        <motion.h1 className="display" {...fadeUp(0)}>Hola, {user?.nombre}</motion.h1>
+        <motion.div className="home__stats" {...fadeUp(1)}>
+          <Link to="/dashboard/auctions" className="home__stat">
+            <CountUp value={total} className="home__statn display" />
+            <span>{total === 1 ? 'subasta activa' : 'subastas activas'}</span>
+          </Link>
+          {mine !== null && (
+            <Link to={esVendedor ? '/dashboard/my-auctions' : '/dashboard/my-bids'} className="home__stat">
+              <CountUp value={mine} className="home__statn display" />
+              <span>{esVendedor ? (mine === 1 ? 'publicada por ti' : 'publicadas por ti') : (mine === 1 ? 'puja tuya va ganando' : 'pujas tuyas van ganando')}</span>
+            </Link>
+          )}
+          {esVendedor && (
+            <Link to="/dashboard/create" className="btn btn--primary btn--lg home__cta"><FaPlus size={14} /> Crear subasta</Link>
+          )}
+        </motion.div>
+      </header>
 
-            <motion.div 
-              className="hero-actions"
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.8, delay: 0.4 }}
-            >
-              {user?.tipoUsuario === 'vendedor' ? (
-                <button 
-                  className="cta-button primary"
-                  onClick={() => setShowCreateModal(true)}
-                >
-                  <FaPlus />
-                  Crear Nueva Subasta
-                </button>
-              ) : null}
-              
-              <button className="cta-button secondary">
-                <FaEye />
-                Explorar Subastas
+      {error && (
+        <div className="alert alert--error" role="alert">
+          No pudimos cargar las subastas.
+          <button type="button" className="link" style={{ marginLeft: 'auto' }} onClick={() => { setLoading(true); cargar(); }}>Reintentar</button>
+        </div>
+      )}
+
+      {loading ? (
+        <>
+          <div className="skeleton home__featskel" />
+          <LotSkeletons count={4} />
+        </>
+      ) : subastas.length === 0 && !error ? (
+        <div className="empty">
+          <FaGavel size={40} className="empty__art" />
+          <h2 className="display">Sala vacía</h2>
+          <p>No hay subastas activas en este momento.</p>
+          {esVendedor && <Link to="/dashboard/create" className="btn btn--primary">Publicar la primera</Link>}
+        </div>
+      ) : (
+        <>
+          {featured && (
+            <motion.section className="feat" aria-labelledby="feat-title" {...fadeUp(2)}>
+              <button type="button" className="feat__media" onClick={() => setSelected(featured)} aria-label={`Abrir ${featured.titulo}`}>
+                <motion.span layoutId={`lot-media-${featured._id}`} className="feat__frame" style={{ borderRadius: 18 }}>
+                  {coverOf(featured) ? <img src={coverOf(featured)} alt="" /> : <span className="lot__noimg"><FaGavel size={48} /></span>}
+                </motion.span>
               </button>
-            </motion.div>
-          </div>
-
-          <motion.div 
-            className="hero-visual"
-            initial={{ x: 100, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ duration: 1, delay: 0.6 }}
-          >
-            <div className="floating-cards">
-              <div className="card card-1">
-                <FaGavel />
-                <span>Subastas en vivo</span>
-              </div>
-              <div className="card card-2">
-                <FaFire />
-                <span>Ofertas calientes</span>
-              </div>
-              <div className="card card-3">
-                <FaRocket />
-                <span>Nuevos productos</span>
-              </div>
-            </div>
-          </motion.div>
-        </motion.section>
-
-        {/* Statistics Section */}
-        <motion.section 
-          id="stats"
-          className="stats-section"
-          initial={{ opacity: 0, y: 50 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          viewport={{ once: true }}
-        >
-          <div className="section-header">
-            <h2>SubastaApp en Números</h2>
-            <p>Más de 50,000 usuarios confían en nosotros</p>
-          </div>
-          
-          <div className="stats-grid">
-            {stats.map((stat, index) => (
-              <motion.div 
-                key={index}
-                className="stat-card"
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                whileHover={{ scale: 1.05 }}
-              >
-                <div className="stat-icon" style={{ backgroundColor: stat.color }}>
-                  <stat.icon />
-                </div>
-                <div className="stat-content">
-                  <h3>{stat.value}</h3>
-                  <p>{stat.label}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.section>
-
-        {/* Featured Auctions */}
-        <motion.section 
-          id="auctions"
-          className="auctions-section"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          transition={{ duration: 0.8 }}
-          viewport={{ once: true }}
-        >
-          <div className="section-header">
-            <h2>Subastas Destacadas</h2>
-            <p>No te pierdas estas increíbles oportunidades</p>
-          </div>
-
-          <div className="auctions-grid">
-            {loading ? (
-              // Skeleton loading
-              Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="auction-card skeleton">
-                  <div className="skeleton-image"></div>
-                  <div className="skeleton-content">
-                    <div className="skeleton-line"></div>
-                    <div className="skeleton-line short"></div>
-                    <div className="skeleton-line"></div>
+              <div className="feat__body">
+                <h2 id="feat-title" className="feat__label display">Es la siguiente en cerrar</h2>
+                <p className="feat__title">{featured.titulo}</p>
+                <div className="feat__clock"><CountdownBig end={featured.fechaFin} /></div>
+                <div className="feat__row">
+                  <div>
+                    <span className="muted">{featured.numeroOfertas || 0} {featured.numeroOfertas === 1 ? 'oferta' : 'ofertas'}</span>
+                    <div className="feat__price display"><Odometer value={money(featured.precioActual ?? featured.precioInicial)} /></div>
                   </div>
+                  <button type="button" className="btn btn--primary btn--lg" onClick={() => setSelected(featured)}>{esVendedor ? 'Ver ficha' : 'Ofertar'} <FaArrowRight size={13} /></button>
                 </div>
-              ))
-            ) : subastas.length > 0 ? (
-              subastas.map((auction, index) => (
-                <AuctionCard
-                  key={auction._id || auction.id}
-                  auction={auction}
-                  user={user}
-                  onEdit={setEditAuction}
-                  onDelete={async (auction) => {
-                    const confirm = await Swal.fire({
-                      title: '¿Eliminar subasta?',
-                      text: 'Esta acción no se puede deshacer',
-                      icon: 'warning',
-                      showCancelButton: true,
-                      confirmButtonText: 'Sí, eliminar',
-                      cancelButtonText: 'Cancelar'
-                    });
-                    if (confirm.isConfirmed) {
-                      try {
-                        await productService.eliminarSubasta(auction._id || auction.id);
-                        setSubastas(prev => prev.filter(s => (s._id || s.id) !== (auction._id || auction.id)));
-                        Swal.fire('Eliminada', 'La subasta fue eliminada', 'success');
-                      } catch (err) {
-                        const friendly = err?.status === 403
-                          ? 'No tienes permiso para eliminar esta subasta. Debes ser el vendedor propietario. Si ya tiene ofertas, no puedes eliminarla; puedes cancelarla desde el menú de estado.'
-                          : err?.message || 'No se pudo eliminar';
-                        Swal.fire('Error', friendly, 'error');
-                      }
-                    }
-                  }}
-                  onView={() => setSelectedAuction(auction)}
-                />
-              ))
-            ) : (
-              <div className="no-auctions">
-                <FaGavel />
-                <h3>No hay subastas activas</h3>
-                <p>Sé el primero en crear una subasta</p>
-                {user?.tipoUsuario === 'vendedor' && (
-                  <button 
-                    className="cta-button primary"
-                    onClick={() => setShowCreateModal(true)}
-                  >
-                    <FaPlus />
-                    Crear Primera Subasta
-                  </button>
-                )}
               </div>
-            )}
-          </div>
+            </motion.section>
+          )}
 
-          <div className="section-footer">
-            <button className="view-all-button">
-              Ver Todas las Subastas
-              <FaChevronDown />
-            </button>
-          </div>
-        </motion.section>
+          {closing.length > 0 && (
+            <section aria-labelledby="closing">
+              <div className="section-head">
+                <h2 id="closing" className="display">Cierran pronto</h2>
+                <Link to="/dashboard/auctions?ordenar=fechaFin" className="link">Ver todas <FaArrowRight size={11} /></Link>
+              </div>
+              <div className="rail-scroll">{closing.map(card)}</div>
+            </section>
+          )}
 
-        {/* Categories Section */}
-        <motion.section 
-          id="categories"
-          className="categories-section"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          transition={{ duration: 0.8 }}
-          viewport={{ once: true }}
-        >
-          <div className="section-header">
-            <h2>Categorías Populares</h2>
-            <p>Encuentra exactamente lo que buscas</p>
-          </div>
+          {popular.length > 0 && (
+            <section aria-labelledby="popular">
+              <div className="section-head"><h2 id="popular" className="display">Las más disputadas</h2></div>
+              <div className="lot-grid">{popular.slice(0, 4).map(card)}</div>
+            </section>
+          )}
 
-          <div className="categories-grid">
-            {categories.map((category, index) => (
-              <motion.div 
-                key={category.name}
-                className="category-card"
-                initial={{ opacity: 0, scale: 0.8 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                whileHover={{ scale: 1.05 }}
-              >
-                <div className="category-icon">{category.icon}</div>
-                <h4>{category.name}</h4>
-                <p>{category.count} productos</p>
-                <div className="category-color" style={{ backgroundColor: category.color }}></div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.section>
+          {counts.length > 0 && (
+            <section aria-labelledby="cats" className="home__cats">
+              <h2 id="cats" className="display">Por categoría</h2>
+              <ul>
+                {counts.map((c, i) => (
+                  <motion.li key={c.value} initial={{ opacity: 0, x: -14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: dur.slow, ease: ease.out, delay: i * 0.05 }}>
+                    <Link to={`/dashboard/auctions?categoria=${c.value}`} className="cat-row">
+                      <span className="display">{c.label}</span>
+                      <span className="tnum muted">{c.n}</span>
+                      <FaArrowRight size={14} />
+                    </Link>
+                  </motion.li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
+      )}
 
-        {/* FAQ Section with Accordion */}
-        <motion.section 
-          id="faq"
-          className="faq-section"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          transition={{ duration: 0.8 }}
-          viewport={{ once: true }}
-        >
-          <div className="section-header">
-            <h2>Preguntas Frecuentes</h2>
-            <p>Todo lo que necesitas saber sobre SubastaApp</p>
-          </div>
+      <section aria-labelledby="faq" className="home__faq">
+        <h2 id="faq" className="display">Cómo funciona</h2>
+        <Faq />
+      </section>
 
-          <div className="faq-container">
-            {faqData.map((faq, index) => (
-              <motion.div 
-                key={index}
-                className={`faq-item ${activeAccordion === index ? 'active' : ''}`}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                viewport={{ once: true }}
-              >
-                <button 
-                  className="faq-question"
-                  onClick={() => toggleAccordion(index)}
-                >
-                  <FaQuestionCircle className="question-icon" />
-                  <span>{faq.question}</span>
-                  {activeAccordion === index ? <FaChevronUp /> : <FaChevronDown />}
-                </button>
-                
-                <AnimatePresence>
-                  {activeAccordion === index && (
-                    <motion.div 
-                      className="faq-answer"
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <p>{faq.answer}</p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            ))}
-          </div>
-        </motion.section>
-
-        {/* Trust Section */}
-        <motion.section 
-          className="trust-section"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          transition={{ duration: 0.8 }}
-          viewport={{ once: true }}
-        >
-          <div className="trust-content">
-            <div className="trust-features">
-              <motion.div 
-                className="trust-feature"
-                whileHover={{ scale: 1.05 }}
-              >
-                <FaShieldAlt className="trust-icon" />
-                <h4>100% Seguro</h4>
-                <p>Todas las transacciones están protegidas</p>
-              </motion.div>
-              
-              <motion.div 
-                className="trust-feature"
-                whileHover={{ scale: 1.05 }}
-              >
-                <FaHandshake className="trust-icon" />
-                <h4>Garantía Total</h4>
-                <p>Compra con confianza, vendemos con calidad</p>
-              </motion.div>
-              
-              <motion.div 
-                className="trust-feature"
-                whileHover={{ scale: 1.05 }}
-              >
-                <FaRocket className="trust-icon" />
-                <h4>Envío Rápido</h4>
-                <p>Entregas en 24-48 horas en todo el país</p>
-              </motion.div>
-            </div>
-          </div>
-        </motion.section>
-      </div>
-
-      {/* Modal de crear/editar subasta */}
       <CreateAuctionModal
-        isOpen={showCreateModal || !!editAuction}
-        onClose={() => { setShowCreateModal(false); setEditAuction(null); }}
-        auction={editAuction}
-        onSuccess={async (auction) => {
-          setShowCreateModal(false);
-          setEditAuction(null);
-          // Recargar todas las subastas para mostrar la nueva
-          await cargarSubastas();
-        }}
+        isOpen={showCreate || !!editing}
+        onClose={() => { setShowCreate(false); setEditing(null); }}
+        auction={editing}
+        onSuccess={cargar}
       />
-
-      {/* Modal de detalles y puja para compradores */}
       <AuctionDetailModal
-        open={!!selectedAuction}
-        auction={selectedAuction}
-        onClose={() => setSelectedAuction(null)}
-        onBidSuccess={(nuevaOferta) => {
-          // Refrescar el precio mostrado en la tarjeta
-          setSubastas(prev => prev.map(s => {
-            if ((s._id || s.id) === (selectedAuction?._id || selectedAuction?.id)) {
-              return { ...s, precioActual: nuevaOferta?.monto, numeroOfertas: (s.numeroOfertas||0)+1 };
-            }
-            return s;
-          }));
+        open={!!selected}
+        auction={selected}
+        onClose={() => setSelected(null)}
+        onBidSuccess={(nueva) => {
+          const pid = selected?._id;
+          setSubastas((p) => p.map((s) => (s._id === pid ? { ...s, precioActual: nueva?.monto, numeroOfertas: (s.numeroOfertas || 0) + 1 } : s)));
         }}
       />
-    </Layout>
+    </div>
   );
 };
 
