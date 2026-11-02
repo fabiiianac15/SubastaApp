@@ -43,13 +43,13 @@ const lamina = (titulo, fondo, tinta, variante) => {
     else lineas.push(p);
   });
   const texto = lineas
-    .slice(0, 5)
-    .map((l, i) => `<text x="64" y="${980 - (Math.min(lineas.length, 5) - 1 - i) * 128}" font-family="Impact, 'Arial Narrow', 'Liberation Sans Narrow', sans-serif" font-weight="800" font-size="122" fill="${tinta}">${l.replace(/&/g, '&amp;')}</text>`)
+    .slice(0, 4)
+    .map((l, i) => `<text x="64" y="${840 - (Math.min(lineas.length, 4) - 1 - i) * 128}" font-family="Impact, 'Arial Narrow', 'Liberation Sans Narrow', sans-serif" font-weight="800" font-size="116" fill="${tinta}">${l.replace(/&/g, '&amp;')}</text>`)
     .join('');
   const forma = [
-    `<circle cx="820" cy="250" r="${190 + variante * 20}" fill="${tinta}" opacity=".9"/>`,
-    `<rect x="${560 - variante * 40}" y="70" width="400" height="400" rx="26" fill="${tinta}" opacity=".9"/>`,
-    `<path d="M980 60 L980 500 L540 60 Z" fill="${tinta}" opacity=".9"/>`,
+    `<circle cx="840" cy="210" r="${140 + variante * 20}" fill="${tinta}" opacity=".9"/>`,
+    `<rect x="${660 - variante * 40}" y="60" width="300" height="300" rx="26" fill="${tinta}" opacity=".9"/>`,
+    `<path d="M1000 60 L1000 400 L660 60 Z" fill="${tinta}" opacity=".9"/>`,
   ][variante % 3];
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080"><rect width="1080" height="1080" fill="${fondo}"/>${forma}${texto}</svg>`;
 };
