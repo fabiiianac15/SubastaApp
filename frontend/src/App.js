@@ -1,7 +1,9 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { MotionConfig } from 'framer-motion';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
+import Layout from './components/layout/Layout';
 import LandingPage from './pages/landing/LandingPage';
 import AuthPage from './pages/auth/AuthPage';
 import WelcomePage from './pages/dashboard/WelcomePage';
@@ -14,183 +16,51 @@ import StatsPage from './pages/dashboard/StatsPage';
 import SettingsPage from './pages/dashboard/SettingsPage';
 import RecommendationsPage from './pages/dashboard/RecommendationsPage';
 import AnalyticsStatsPage from './pages/dashboard/AnalyticsStatsPage';
-import './App.css';
+import Gavel from './components/ui/Gavel';
+import './styles/pages.css';
+
+const StatusScreen = ({ code, title, text, to = '/', cta }) => (
+  <main className="status-screen">
+    <Gavel size={72} className="status-screen__art" />
+    <h1 className="display">{code ? `${code}. ` : ''}{title}</h1>
+    <p className="muted">{text}</p>
+    <Link className="btn btn--primary btn--lg" to={to}>{cta}</Link>
+  </main>
+);
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <div className="App">
+    <MotionConfig reducedMotion="user">
+      <AuthProvider>
+        <Router>
           <Routes>
-            {/* Ruta principal - Landing Page */}
             <Route path="/" element={<LandingPage />} />
-            
-            {/* Ruta de autenticación */}
             <Route path="/auth" element={<AuthPage />} />
-            
-            {/* Rutas protegidas */}
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute>
-                  <WelcomePage />
-                </ProtectedRoute>
-              } 
+            {/* El marco vive fuera de las páginas: conserva su estado y su indicador activo entre rutas. */}
+            <Route path="/dashboard" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+              <Route index element={<WelcomePage />} />
+              <Route path="auctions" element={<AuctionsPage />} />
+              <Route path="create" element={<CreateAuctionPage />} />
+              <Route path="my-auctions" element={<MyAuctionsPage />} />
+              <Route path="my-bids" element={<MyBidsPage />} />
+              <Route path="favorites" element={<FavoritesPage />} />
+              <Route path="stats" element={<StatsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="recommendations" element={<RecommendationsPage />} />
+              <Route path="analytics-stats" element={<AnalyticsStatsPage />} />
+            </Route>
+            <Route
+              path="/unauthorized"
+              element={<StatusScreen title="Sin acceso" text="No tienes permisos para abrir esta página." to="/dashboard" cta="Volver al inicio" />}
             />
-            <Route 
-              path="/dashboard/auctions" 
-              element={
-                <ProtectedRoute>
-                  <AuctionsPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/dashboard/create" 
-              element={
-                <ProtectedRoute>
-                  <CreateAuctionPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/dashboard/my-auctions" 
-              element={
-                <ProtectedRoute>
-                  <MyAuctionsPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/dashboard/my-bids" 
-              element={
-                <ProtectedRoute>
-                  <MyBidsPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/dashboard/favorites" 
-              element={
-                <ProtectedRoute>
-                  <FavoritesPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/dashboard/stats" 
-              element={
-                <ProtectedRoute>
-                  <StatsPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/dashboard/settings" 
-              element={
-                <ProtectedRoute>
-                  <SettingsPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/dashboard/recommendations" 
-              element={
-                <ProtectedRoute>
-                  <RecommendationsPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/dashboard/analytics-stats" 
-              element={
-                <ProtectedRoute>
-                  <AnalyticsStatsPage />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Ruta para usuarios no autorizados */}
-            <Route 
-              path="/unauthorized" 
-              element={
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  alignItems: 'center', 
-                  height: '100vh',
-                  background: 'linear-gradient(135deg, #0a0b0f 0%, #0f1419 50%, #0a1410 100%)',
-                  color: 'white',
-                  textAlign: 'center',
-                  flexDirection: 'column',
-                  gap: '20px'
-                }}>
-                  <h1>Acceso No Autorizado</h1>
-                  <p>No tienes permisos para acceder a esta página</p>
-                  <button 
-                    onClick={() => window.history.back()}
-                    style={{
-                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                      color: 'white',
-                      border: 'none',
-                      padding: '12px 24px',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                      transition: 'all 0.3s ease'
-                    }}
-                    onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
-                    onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
-                  >
-                    Volver
-                  </button>
-                </div>
-              } 
-            />
-            
-            {/* Ruta 404 */}
-            <Route 
-              path="*" 
-              element={
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  alignItems: 'center', 
-                  height: '100vh',
-                  background: 'linear-gradient(135deg, #0a0b0f 0%, #0f1419 50%, #0a1410 100%)',
-                  color: 'white',
-                  textAlign: 'center',
-                  flexDirection: 'column',
-                  gap: '20px'
-                }}>
-                  <h1>404 - Página No Encontrada</h1>
-                  <p>La página que buscas no existe</p>
-                  <button 
-                    onClick={() => window.location.href = '/'}
-                    style={{
-                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                      color: 'white',
-                      border: 'none',
-                      padding: '12px 24px',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                      transition: 'all 0.3s ease'
-                    }}
-                    onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
-                    onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
-                  >
-                    Ir al Inicio
-                  </button>
-                </div>
-              } 
+            <Route
+              path="*"
+              element={<StatusScreen code="404" title="Lote no encontrado" text="Esta página no existe o ya se adjudicó." cta="Ir al inicio" />}
             />
           </Routes>
-        </div>
-      </Router>
-    </AuthProvider>
+        </Router>
+      </AuthProvider>
+    </MotionConfig>
   );
 }
 
