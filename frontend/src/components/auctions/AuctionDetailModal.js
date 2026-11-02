@@ -175,7 +175,7 @@ const Panel = ({ auction, onClose, onBidSuccess }) => {
       {cerrada ? (
         <p className="alert alert--note">Esta subasta no está recibiendo ofertas.</p>
       ) : esComprador ? (
-        <form className="ficha__form" onSubmit={(e) => { e.preventDefault(); placeBid(); }}>
+        <form className="ficha__form" noValidate onSubmit={(e) => { e.preventDefault(); placeBid(); }}>
           <div className="ficha__quick" role="group" aria-label="Montos rápidos">
             {[1, 2, 5].map((x) => {
               const v = precio + incremento * x;

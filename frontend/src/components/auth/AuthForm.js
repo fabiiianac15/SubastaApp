@@ -89,7 +89,7 @@ const AuthForm = () => {
         </motion.span>
         <AnimatePresence mode="wait" initial={false}>
           <motion.p key={isSignUp ? 'up' : 'in'} className="auth__claim display" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10, transition: { duration: dur.exit } }} transition={{ duration: 0.34, ease: ease.out }}>
-            {isSignUp ? 'Tu primera puja empieza aquí' : 'La sala sigue abierta'}
+            {isSignUp ? 'Tu primera puja' : 'La sala sigue abierta'}
           </motion.p>
         </AnimatePresence>
       </aside>

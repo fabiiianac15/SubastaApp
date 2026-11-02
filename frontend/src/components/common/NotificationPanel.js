@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FaBell, FaCreditCard, FaFire, FaGavel, FaHourglassEnd, FaRegComment, FaStar, FaTimes, FaTimesCircle, FaTrash, FaTrophy, FaCheck, FaMoneyBillWave } from 'react-icons/fa';
@@ -21,6 +21,8 @@ const ICONS = {
 // Fila deslizable: al soltar más allá del umbral (o con impulso) se elimina.
 const Item = ({ n, index, onOpen, onDelete }) => {
   const [Icon, tone] = ICONS[n.tipo] || [FaGavel, ''];
+  // Soltar tras arrastrar también genera un clic: no debe abrir la notificación.
+  const dragged = useRef(false);
   return (
     <motion.li
       layout="position"
@@ -38,11 +40,13 @@ const Item = ({ n, index, onOpen, onDelete }) => {
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={{ left: 0, right: 0.8 }}
         dragSnapToOrigin
+        onDragStart={() => { dragged.current = true; }}
         onDragEnd={(_, info) => {
+          setTimeout(() => { dragged.current = false; }, 0);
           if (info.offset.x > 110 || info.velocity.x > 600) onDelete(n._id);
         }}
       >
-        <button type="button" className="notif__main" onClick={() => onOpen(n)}>
+        <button type="button" className="notif__main" onClick={() => { if (!dragged.current) onOpen(n); }}>
           <span className={`notif__icon pill ${tone ? `pill--${tone}` : ''}`}><Icon size={14} /></span>
           <span className="notif__text">
             <span className="notif__title"><strong>{n.titulo}</strong><small className="tnum">{notificationService.formatearTiempoRelativo(n.createdAt)}</small></span>

@@ -6,6 +6,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 let locks = 0;
+const stack = [];
 
 const Panel = ({ onClose, label, labelledBy, width, className, children, dismissible }) => {
   const ref = useRef(null);
@@ -30,11 +31,22 @@ const Panel = ({ onClose, label, labelledBy, width, className, children, dismiss
     };
   }, []);
 
+  // Esc se escucha en el documento: debe funcionar aunque el foco haya salido del
+  // diálogo. Solo responde el diálogo superior.
+  useEffect(() => {
+    const token = {};
+    stack.push(token);
+    const onEsc = (e) => {
+      if (e.key === 'Escape' && dismissible && stack[stack.length - 1] === token) onClose();
+    };
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      stack.splice(stack.indexOf(token), 1);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [dismissible, onClose]);
+
   const onKeyDown = (e) => {
-    if (e.key === 'Escape' && dismissible) {
-      e.stopPropagation();
-      onClose();
-    }
     if (e.key !== 'Tab') return;
     const items = [...ref.current.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null);
     if (!items.length) return;

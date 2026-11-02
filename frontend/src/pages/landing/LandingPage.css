@@ -53,14 +53,15 @@ html:has(.lp) { scroll-behavior: smooth; scroll-padding-top: 88px; }
 .scene { height: 300vh; }
 .scene__sticky { position: sticky; top: 0; height: 100dvh; display: grid; align-items: center; padding: 72px var(--gutter) 24px; overflow: hidden; }
 .scene__grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: clamp(24px, 5vw, 80px); align-items: center; width: 100%; }
-.scene__stage { position: relative; height: min(68dvh, 620px); display: grid; align-items: end; }
-.scene__gavel { position: absolute; left: 22%; bottom: 25%; width: min(30vh, 36%); aspect-ratio: 200 / 260; color: var(--accent); transform-origin: 50% 96%; }
-.scene__block { position: absolute; left: 4%; bottom: 13%; width: 38%; height: 7%; border-radius: 8px; background: var(--raised); }
-.scene__ring { position: absolute; left: 11%; bottom: 8%; width: 24%; aspect-ratio: 1; border: 6px solid var(--accent); border-radius: 50%; }
-.scene__price { position: relative; font-size: clamp(48px, 7vw, 116px); }
+.scene__stage { position: relative; height: min(70dvh, 640px); container-type: inline-size; }
+/* El mazo gira sobre el extremo del mango: la cabeza cae hasta el bloque. */
+.scene__gavel { position: absolute; left: 46%; bottom: 17%; width: 26cqw; aspect-ratio: 200 / 260; color: var(--accent); transform-origin: 50% 96%; }
+.scene__block { position: absolute; left: 6%; bottom: 3%; width: 46cqw; height: 26px; border-radius: 8px; background: var(--raised); }
+.scene__ring { position: absolute; left: 11%; bottom: -9cqw; width: 30cqw; aspect-ratio: 1; border: 6px solid var(--accent); border-radius: 50%; }
+.scene__price { position: relative; font-size: clamp(48px, 12cqw, 116px); }
 .scene__copy h2 { font-size: clamp(44px, 5.4vw, 88px); margin-bottom: 28px; }
 .scene__copy ol { display: grid; gap: 22px; }
-.scene__copy li { color: var(--faint); transition: color 260ms ease, transform 300ms var(--ease-out); transform-origin: left center; }
+.scene__copy li { color: var(--muted); transition: color 260ms ease, transform 300ms var(--ease-out); transform-origin: left center; }
 .scene__copy li.is-on { color: var(--ink); transform: translateX(10px); }
 .scene__copy li h3 { font-size: 22px; font-weight: 700; }
 .scene__copy li p { font-size: 17px; max-width: 42ch; color: inherit; }
@@ -68,9 +69,9 @@ html:has(.lp) { scroll-behavior: smooth; scroll-padding-top: 88px; }
 @media (max-width: 860px) {
   .scene__sticky { padding-top: 66px; }
   .scene__grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
-  .scene__stage { height: 38dvh; }
-  .scene__gavel { width: 28%; }
-  .scene__price { font-size: 12vw; }
+  .scene__stage { height: 42dvh; }
+  .scene__gavel { width: min(24cqw, 16dvh); bottom: 16%; }
+  .scene__price { font-size: 13cqw; }
   .scene__copy h2 { font-size: 40px; margin-bottom: 12px; }
   .scene__copy ol { gap: 8px; }
   .scene__copy li h3 { font-size: 18px; }

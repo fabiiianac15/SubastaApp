@@ -87,15 +87,10 @@ const MyBidsPage = () => {
     }
   };
 
+  // Los errores suben al modal, que los muestra sin cerrar el formulario.
   const onPaid = async (payment) => {
-    try {
-      await productService.pagarOfertaGanadora(wonBid._id, { metodoPago: METODO[payment.metodo], transaccionId: payment.transaccionId });
-      setWonBid(null);
-      await cargar();
-    } catch (err) {
-      setWonBid(null);
-      Swal.fire('No se pudo registrar el pago', err?.message || 'Inténtalo de nuevo.', 'error');
-    }
+    await productService.pagarOfertaGanadora(wonBid._id, { metodoPago: METODO[payment.metodo], transaccionId: payment.transaccionId });
+    await cargar();
   };
 
   if (!esComprador) {

@@ -27,7 +27,7 @@
 .ficha__quick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .ficha__quickbtn { position: relative; min-height: 44px; padding: 0 4px; border-radius: var(--r-m); background: var(--raised); font-size: 14px; font-weight: 650; transition: transform 160ms var(--ease-out), color 140ms ease; overflow: hidden; white-space: nowrap; }
 .ficha__quickbtn:active { transform: scale(0.97); }
-.ficha__quickbtn > span { position: relative; }
+.ficha__quickbtn > span:not(.ficha__quickpill) { position: relative; }
 .ficha__quickbtn[aria-pressed='true'] { color: var(--on-accent); }
 .ficha__quickpill { position: absolute; inset: 0; border-radius: inherit; background: var(--accent); }
 .ficha__desc { font-size: 15px; line-height: 1.6; }

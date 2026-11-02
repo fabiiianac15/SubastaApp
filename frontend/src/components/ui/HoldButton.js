@@ -49,7 +49,8 @@ const HoldButton = ({ onComplete, disabled, busy, children, holdLabel = 'Sigue p
       <button
         type="button"
         className={`hold__btn ${holding ? 'is-holding' : ''}`}
-        disabled={disabled || busy}
+        disabled={disabled}
+        aria-disabled={busy || undefined}
         aria-busy={busy || undefined}
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}

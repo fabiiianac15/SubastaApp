@@ -85,9 +85,9 @@ const PaymentModal = ({ open, onClose, monto, auction, onPaymentComplete, onPaym
       setLoading(false);
       return undefined;
     }
-    setSuccess(true);
-    setTimeout(() => {
-      onPaymentComplete({
+    // La confirmación solo se muestra cuando el servidor ya registró el pago.
+    try {
+      await onPaymentComplete({
         metodo,
         monto,
         transaccionId: `TXN-${Date.now()}`,
@@ -95,8 +95,15 @@ const PaymentModal = ({ open, onClose, monto, auction, onPaymentComplete, onPaym
         banco: metodo === 'pse' ? banco : null,
         ultimos4: metodo === 'tarjeta' ? numeroTarjeta.slice(-4) : null,
       });
-      resetForm();
-    }, 1500);
+      setSuccess(true);
+      setTimeout(() => {
+        onClose();
+        resetForm();
+      }, 1500);
+    } catch (err) {
+      setError(err?.message || 'No se pudo registrar el pago.');
+      setLoading(false);
+    }
     return undefined;
   };
 

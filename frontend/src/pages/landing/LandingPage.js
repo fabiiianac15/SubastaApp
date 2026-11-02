@@ -119,9 +119,9 @@ const Scene = () => {
   const ref = useRef(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] });
   const smooth = useSpring(scrollYProgress, { stiffness: 120, damping: 26, mass: 0.4 });
-  const rotate = useTransform(smooth, [0, 0.78, 0.86, 1], [-38, -38, 8, 2]);
-  const ringScale = useTransform(smooth, [0.84, 0.98], [0.3, 2.3]);
-  const ringOpacity = useTransform(smooth, [0.83, 0.86, 0.98], [0, 1, 0]);
+  const rotate = useTransform(smooth, [0, 0.76, 0.84, 0.88, 1], [-24, -30, -84, -78, -78]);
+  const ringScale = useTransform(smooth, [0.83, 0.97], [0.3, 2]);
+  const ringOpacity = useTransform(smooth, [0.82, 0.85, 0.97], [0, 1, 0]);
   const [step, setStep] = useState(0);
   const [price, setPrice] = useState(SCENE_START);
 
@@ -143,7 +143,7 @@ const Scene = () => {
             <div className="scene__price display"><Odometer value={money(price)} label="Precio de ejemplo" /></div>
           </div>
           <div className="scene__copy">
-            <h2 id="como-title" className="display">Tres golpes de pulso</h2>
+            <h2 id="como-title" className="display">Tres golpes y es tuyo</h2>
             <ol>
               {STEPS.map((s, i) => (
                 <li key={s.title} className={i === step ? 'is-on' : ''}>
