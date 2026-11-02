@@ -1,50 +1,31 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FaTimes, FaUpload, FaImage, FaTrash, FaEye, FaEyeSlash,
-  FaCalendarAlt, FaDollarSign, FaPercentage, FaGavel,
-  FaSave, FaSpinner, FaExclamationTriangle, FaCheckCircle
-} from 'react-icons/fa';
+import React, { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { FaExclamationTriangle, FaImage, FaSpinner, FaTimes, FaTrash, FaUpload } from 'react-icons/fa';
 import productService from '../../services/productService';
 import authService from '../../services/authService';
-import './CreateAuctionModal.css';
+import { mediaUrl, toLocalInput } from '../../lib/media';
+import { dur, ease, spring } from '../../lib/motion';
+import Dialog from '../ui/Dialog';
+import { Segmented } from '../ui/Controls';
+import '../../styles/modals.css';
+
+const EMPTY = { titulo: '', descripcion: '', categoria: 'tecnologia', precioInicial: '', porcentajeMinimo: '5', fechaInicio: '', fechaFin: '', tipoSubasta: 'publica', condiciones: '', tags: '' };
 
 const CreateAuctionModal = ({ isOpen, onClose, auction = null, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(false);
   const [imagenes, setImagenes] = useState([]);
-  const [imagenesPreview, setImagenesPreview] = useState([]);
-  const fileInputRef = useRef(null);
+  const [previews, setPreviews] = useState([]);
   const [iniciarAhora, setIniciarAhora] = useState(false);
-
-  const [formData, setFormData] = useState({
-    titulo: '',
-    descripcion: '',
-    categoria: 'tecnologia',
-    precioInicial: '',
-    porcentajeMinimo: '5',
-    fechaInicio: '',
-    fechaFin: '',
-    tipoSubasta: 'publica',
-    condiciones: '',
-    tags: ''
-  });
+  const [formData, setFormData] = useState(EMPTY);
+  const fileInputRef = useRef(null);
+  const locked = auction?.numeroOfertas > 0;
 
   useEffect(() => {
-    let interval;
-    if (iniciarAhora) {
-      interval = setInterval(() => {
-        const now = new Date();
-        const tzOffset = now.getTimezoneOffset() * 60000;
-        const localISOTime = new Date(now - tzOffset).toISOString().slice(0, 16);
-        setFormData(prev => ({ ...prev, fechaInicio: localISOTime }));
-      }, 1000);
-    }
-    return () => interval && clearInterval(interval);
-  }, [iniciarAhora]);
-
-  useEffect(() => {
+    if (!isOpen) return;
+    setError(null);
+    setImagenes([]);
+    setIniciarAhora(false);
     if (auction) {
       setFormData({
         titulo: auction.titulo || '',
@@ -52,343 +33,187 @@ const CreateAuctionModal = ({ isOpen, onClose, auction = null, onSuccess }) => {
         categoria: auction.categoria || 'tecnologia',
         precioInicial: auction.precioInicial?.toString() || '',
         porcentajeMinimo: auction.porcentajeMinimo?.toString() || '5',
-        fechaInicio: auction.fechaInicio ? new Date(auction.fechaInicio).toISOString().slice(0, 16) : '',
-        fechaFin: auction.fechaFin ? new Date(auction.fechaFin).toISOString().slice(0, 16) : '',
+        fechaInicio: auction.fechaInicio ? toLocalInput(auction.fechaInicio) : '',
+        fechaFin: auction.fechaFin ? toLocalInput(auction.fechaFin) : '',
         tipoSubasta: auction.tipoSubasta || 'publica',
         condiciones: auction.condiciones || '',
-        tags: auction.tags ? auction.tags.join(', ') : ''
+        tags: auction.tags ? auction.tags.join(', ') : '',
       });
-
-      if (auction.imagenes && auction.imagenes.length > 0) {
-        setImagenesPreview(auction.imagenes.map(img => ({
-          id: img._id || Math.random(),
-          url: img.url.startsWith('http') ? img.url : `${process.env.REACT_APP_API_URL.replace('/api', '')}${img.url}`,
-          isExisting: true
-        })));
-      }
+      setPreviews((auction.imagenes || []).map((img) => ({ id: img._id || img.url, url: mediaUrl(img.url), isExisting: true })));
+    } else {
+      setFormData(EMPTY);
+      setPreviews([]);
     }
-  }, [auction]);
+  }, [auction, isOpen]);
 
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
+  const onField = (e) => {
+    const { name, value } = e.target;
     if (error) setError(null);
-    
-    if (name === 'iniciarAhora') {
-      setIniciarAhora(checked);
-      if (checked) {
-        const now = new Date();
-        const tzOffset = now.getTimezoneOffset() * 60000;
-        const localISOTime = new Date(now - tzOffset).toISOString().slice(0, 16);
-        setFormData(prev => ({ ...prev, fechaInicio: localISOTime }));
-      } else {
-        setFormData(prev => ({ ...prev, fechaInicio: '' }));
-      }
-      return;
-    }
-    
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((p) => ({ ...p, [name]: value }));
   };
 
-  const resetForm = () => {
-    setFormData({
-      titulo: '', descripcion: '', categoria: 'tecnologia',
-      precioInicial: '', porcentajeMinimo: '5', fechaInicio: '',
-      fechaFin: '', tipoSubasta: 'publica', condiciones: '', tags: ''
-    });
-    setImagenes([]);
-    setImagenesPreview([]);
-    setIniciarAhora(false);
-    setError(null);
-    setSuccess(false);
+  const toggleNow = (e) => {
+    setIniciarAhora(e.target.checked);
+    setFormData((p) => ({ ...p, fechaInicio: e.target.checked ? toLocalInput(new Date()) : '' }));
   };
 
-  const handleImageSelect = (e) => {
+  const onFiles = (e) => {
     const files = Array.from(e.target.files);
-    if (imagenesPreview.length + files.length > 5) {
-      setError('Máximo 5 imágenes permitidas');
-      return;
-    }
-
-    files.forEach(file => {
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Cada imagen debe ser menor a 5MB');
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImagenes(prev => [...prev, file]);
-        setImagenesPreview(prev => [...prev, {
-          id: Math.random(), file, url: e.target.result, isNew: true
-        }]);
-      };
-      reader.readAsDataURL(file);
-    });
+    e.target.value = '';
+    if (previews.length + files.length > 5) return setError('Puedes subir hasta 5 imágenes.');
+    const valid = files.filter((f) => f.size <= 5 * 1024 * 1024);
+    if (valid.length < files.length) setError('Cada imagen debe pesar menos de 5 MB.');
+    setImagenes((p) => [...p, ...valid]);
+    setPreviews((p) => [...p, ...valid.map((file) => ({ id: `${file.name}-${file.lastModified}-${Math.random()}`, file, url: URL.createObjectURL(file), isNew: true }))]);
+    return undefined;
   };
 
   const removeImage = (id) => {
-    const imageToRemove = imagenesPreview.find(img => img.id === id);
-    setImagenesPreview(prev => prev.filter(img => img.id !== id));
-    if (imageToRemove?.isNew) {
-      setImagenes(prev => prev.filter(file => file !== imageToRemove.file));
-    }
+    const target = previews.find((i) => i.id === id);
+    setPreviews((p) => p.filter((i) => i.id !== id));
+    if (target?.isNew) setImagenes((p) => p.filter((f) => f !== target.file));
   };
 
-  const validateForm = () => {
-    const errors = [];
-    if (!formData.titulo.trim()) errors.push('El título es requerido');
-    if (!formData.descripcion.trim()) errors.push('La descripción es requerida');
-    if (!formData.precioInicial || Number(formData.precioInicial) <= 0) {
-      errors.push('El precio inicial debe ser mayor a 0');
-    }
-    if (!formData.fechaInicio) errors.push('La fecha de inicio es requerida');
-    if (!formData.fechaFin) errors.push('La fecha de fin es requerida');
-    
+  const validate = () => {
+    const errs = [];
+    if (formData.titulo.trim().length < 5) errs.push('El título necesita al menos 5 caracteres');
+    if (formData.descripcion.trim().length < 10) errs.push('La descripción necesita al menos 10 caracteres');
+    if (!formData.precioInicial || Number(formData.precioInicial) <= 0) errs.push('El precio inicial debe ser mayor a 0');
+    if (!formData.fechaInicio) errs.push('Falta la fecha de inicio');
+    if (!formData.fechaFin) errs.push('Falta la fecha de fin');
     if (formData.fechaInicio && formData.fechaFin) {
-      const inicio = new Date(formData.fechaInicio);
-      const fin = new Date(formData.fechaFin);
-
-      if (fin <= inicio) {
-        errors.push('La fecha de fin debe ser posterior a la fecha de inicio');
-      }
-
-      const duracionMinutos = (fin - inicio) / 60000;
-      if (duracionMinutos < 60) {
-        errors.push('La subasta debe durar al menos 1 hora');
-      }
+      const mins = (new Date(formData.fechaFin) - new Date(formData.fechaInicio)) / 60000;
+      if (mins <= 0) errs.push('El fin debe ser posterior al inicio');
+      else if (mins < 60) errs.push('La subasta debe durar al menos 1 hora');
     }
-
-    if (!auction && imagenesPreview.length === 0) {
-      errors.push('Debe subir al menos una imagen');
-    }
-
-    return errors;
+    if (!auction && previews.length === 0) errs.push('Sube al menos una imagen');
+    return errs;
   };
 
-  const handleSubmit = async (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-
-    const token = localStorage.getItem('token');
     const user = authService.getCurrentUser();
-    
-    if (!token) {
-      setError('Debes iniciar sesión para crear una subasta.');
-      return;
-    }
-    if (!user || user.tipoUsuario !== 'vendedor') {
-      setError('Solo los usuarios con perfil de vendedor pueden crear subastas.');
-      return;
-    }
-
-    const validationErrors = validateForm();
-    if (validationErrors.length > 0) {
-      setError(validationErrors.join('. '));
-      return;
-    }
-
+    if (!localStorage.getItem('token')) return setError('Debes iniciar sesión para crear una subasta.');
+    if (!user || user.tipoUsuario !== 'vendedor') return setError('Solo las cuentas de vendedor pueden crear subastas.');
+    const errs = validate();
+    if (errs.length) return setError(errs.join('. '));
     setLoading(true);
     setError(null);
-
     try {
-      const formDataToSend = new FormData();
-      Object.keys(formData).forEach(key => {
-        formDataToSend.append(key, formData[key]);
-      });
-      imagenes.forEach((file) => {
-        formDataToSend.append('imagenes', file);
-      });
-
-      let response;
-      if (auction) {
-        const updateFormData = new FormData();
-        if (!auction.numeroOfertas || auction.numeroOfertas === 0) {
-          Object.keys(formData).forEach(key => updateFormData.append(key, formData[key]));
-          imagenes.forEach((file) => updateFormData.append('imagenes', file));
-        } else {
-          ['titulo', 'descripcion', 'condiciones', 'tags'].forEach(field => {
-            if (formData[field]) updateFormData.append(field, formData[field]);
-          });
-        }
-        response = await productService.actualizarSubasta(auction._id, updateFormData);
+      const data = new FormData();
+      // Las fechas viajan en ISO para que el servidor no las interprete en su zona horaria.
+      const payload = { ...formData, fechaInicio: new Date(formData.fechaInicio).toISOString(), fechaFin: new Date(formData.fechaFin).toISOString() };
+      if (locked) {
+        ['titulo', 'descripcion', 'condiciones', 'tags'].forEach((k) => payload[k] && data.append(k, payload[k]));
       } else {
-        response = await productService.crearSubasta(formDataToSend);
+        Object.keys(payload).forEach((k) => data.append(k, payload[k]));
+        imagenes.forEach((f) => data.append('imagenes', f));
       }
-
-      onSuccess?.(response.data);
-      setSuccess(true);
-      setTimeout(() => {
-        onClose();
-        setSuccess(false);
-        resetForm();
-      }, 1500);
-
-    } catch (error) {
-      if (error.errors && Array.isArray(error.errors)) {
-        setError(error.errors.map(e => e.msg).join('. '));
-      } else if (error.response?.data?.message) {
-        setError(error.response.data.message);
-      } else {
-        setError(error.message || 'Error procesando la solicitud');
-      }
+      const res = auction ? await productService.actualizarSubasta(auction._id, data) : await productService.crearSubasta(data);
+      onSuccess?.(res.data);
+      onClose();
+    } catch (err) {
+      if (Array.isArray(err.errors)) setError(err.errors.map((x) => x.msg).join('. '));
+      else setError(err.response?.data?.message || err.message || 'No se pudo guardar la subasta.');
     } finally {
       setLoading(false);
     }
+    return undefined;
   };
 
-  if (!isOpen) return null;
-
   return (
-    <AnimatePresence>
-      <motion.div className="create-auction-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-        <motion.div className="create-auction-modal" initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} onClick={e => e.stopPropagation()}>
-          
-          <div className="modal-header">
-            <h2><FaGavel /> {auction ? 'Editar Subasta' : 'Crear Nueva Subasta'}</h2>
-            <button className="close-btn" onClick={onClose}><FaTimes /></button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="modal-body">
-            {error && <div className="error-message"><FaExclamationTriangle /> {error}</div>}
-            {success && <div className="success-message"><FaCheckCircle /> ¡Subasta {auction ? 'actualizada' : 'creada'} exitosamente!</div>}
-
-            <div className="form-group">
-              <label>Título *</label>
-              <input type="text" name="titulo" value={formData.titulo} onChange={handleInputChange} 
-                placeholder="Ej: iPhone 14 Pro Max" maxLength="100" disabled={auction?.numeroOfertas > 0} required />
-              <span className="char-count">{formData.titulo.length}/100</span>
+    <Dialog open={isOpen} onClose={onClose} labelledBy="cam-title" width={720} dismissible={!loading}>
+      <div className="dialog__head">
+        <h2 id="cam-title" className="display">{auction ? 'Editar subasta' : 'Nueva subasta'}</h2>
+        <button type="button" className="icon-btn" onClick={onClose} disabled={loading} aria-label="Cerrar"><FaTimes size={16} /></button>
+      </div>
+      <form onSubmit={submit} style={{ display: 'contents' }}>
+        <div className="dialog__scroll">
+          <div className="dialog__body">
+            {locked && <p className="alert alert--note">Esta subasta ya tiene ofertas: solo puedes cambiar la descripción y las condiciones.</p>}
+            <div className="field">
+              <label htmlFor="cam-titulo">Título</label>
+              <input id="cam-titulo" className="input" name="titulo" value={formData.titulo} onChange={onField} maxLength={100} disabled={locked} aria-describedby="cam-titulo-n" />
+              <span id="cam-titulo-n" className="field__hint tnum"><span /> {formData.titulo.length}/100</span>
             </div>
-
             <div className="form-row">
-              <div className="form-group">
-                <label>Categoría *</label>
-                <select name="categoria" value={formData.categoria} onChange={handleInputChange} disabled={auction?.numeroOfertas > 0} required>
-                  {productService.categorias.map(cat => (
-                    <option key={cat.value} value={cat.value}>{cat.icon} {cat.label}</option>
-                  ))}
+              <div className="field">
+                <label htmlFor="cam-cat">Categoría</label>
+                <select id="cam-cat" className="select" name="categoria" value={formData.categoria} onChange={onField} disabled={locked}>
+                  {productService.categorias.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
               </div>
-
-              <div className="form-group">
-                <label>Tipo *</label>
-                <div className="radio-group">
-                  <label className="radio-option">
-                    <input type="radio" name="tipoSubasta" value="publica" checked={formData.tipoSubasta === 'publica'} onChange={handleInputChange} disabled={auction?.numeroOfertas > 0} />
-                    <FaEye /> Pública
-                  </label>
-                  <label className="radio-option">
-                    <input type="radio" name="tipoSubasta" value="privada" checked={formData.tipoSubasta === 'privada'} onChange={handleInputChange} disabled={auction?.numeroOfertas > 0} />
-                    <FaEyeSlash /> Privada
-                  </label>
-                </div>
+              <div className="field">
+                <span className="field-label">Visibilidad</span>
+                <Segmented id="cam-tipo" label="Visibilidad" value={formData.tipoSubasta} onChange={(v) => !locked && setFormData((p) => ({ ...p, tipoSubasta: v }))} options={[{ value: 'publica', label: 'Pública' }, { value: 'privada', label: 'Privada' }]} />
               </div>
             </div>
-
-            <div className="form-group">
-              <label>Descripción *</label>
-              <textarea name="descripcion" value={formData.descripcion} onChange={handleInputChange} 
-                placeholder="Describe el producto..." rows="4" maxLength="2000" required />
-              <span className="char-count">{formData.descripcion.length}/2000</span>
+            <div className="field">
+              <label htmlFor="cam-desc">Descripción</label>
+              <textarea id="cam-desc" className="textarea" name="descripcion" rows={4} maxLength={2000} value={formData.descripcion} onChange={onField} />
+              <span className="field__hint tnum"><span /> {formData.descripcion.length}/2000</span>
             </div>
-
             <div className="form-row">
-              <div className="form-group">
-                <label>Precio Inicial *</label>
-                <div className="input-with-icon">
-                  <FaDollarSign />
-                  <input type="number" name="precioInicial" value={formData.precioInicial} onChange={handleInputChange} 
-                    min="1" step="any" placeholder="1000" disabled={auction?.numeroOfertas > 0} required />
-                </div>
+              <div className="field">
+                <label htmlFor="cam-precio">Precio inicial (COP)</label>
+                <input id="cam-precio" className="input tnum" type="number" min="1" step="any" name="precioInicial" value={formData.precioInicial} onChange={onField} disabled={locked} />
               </div>
-
-              <div className="form-group">
-                <label>Incremento (%) *</label>
-                <div className="input-with-icon">
-                  <FaPercentage />
-                  <input type="number" name="porcentajeMinimo" value={formData.porcentajeMinimo} onChange={handleInputChange} 
-                    min="1" max="50" step="0.1" placeholder="5" disabled={auction?.numeroOfertas > 0} required />
-                </div>
+              <div className="field">
+                <label htmlFor="cam-pct">Incremento mínimo (%)</label>
+                <input id="cam-pct" className="input tnum" type="number" min="1" max="50" step="0.1" name="porcentajeMinimo" value={formData.porcentajeMinimo} onChange={onField} disabled={locked} />
               </div>
             </div>
-
             <div className="form-row">
-              <div className="form-group">
-                <label>Inicio *</label>
-                <div className="datetime-wrapper">
-                  <div className="input-with-icon">
-                    <FaCalendarAlt />
-                    <input type="datetime-local" name="fechaInicio" value={formData.fechaInicio} onChange={handleInputChange} 
-                      disabled={auction?.numeroOfertas > 0 || iniciarAhora} required />
-                  </div>
-                  <label className="checkbox-label">
-                    <input type="checkbox" name="iniciarAhora" checked={iniciarAhora} onChange={handleInputChange} disabled={auction?.numeroOfertas > 0} />
-                    Ahora
-                  </label>
-                </div>
+              <div className="field">
+                <label htmlFor="cam-ini">Inicio</label>
+                <input id="cam-ini" className="input" type="datetime-local" name="fechaInicio" value={formData.fechaInicio} onChange={onField} disabled={locked || iniciarAhora} />
+                <label className="check"><input type="checkbox" checked={iniciarAhora} onChange={toggleNow} disabled={locked} /> Empezar ahora</label>
               </div>
-
-              <div className="form-group">
-                <label>Fin *</label>
-                <div className="input-with-icon">
-                  <FaCalendarAlt />
-                  <input type="datetime-local" name="fechaFin" value={formData.fechaFin} onChange={handleInputChange} required />
-                </div>
+              <div className="field">
+                <label htmlFor="cam-fin">Fin</label>
+                <input id="cam-fin" className="input" type="datetime-local" name="fechaFin" value={formData.fechaFin} onChange={onField} disabled={locked} />
               </div>
             </div>
-
-            <div className="form-group">
-              <label>Imágenes *</label>
-              <div className="upload-area">
-                <input ref={fileInputRef} type="file" multiple accept="image/*" onChange={handleImageSelect} style={{ display: 'none' }} />
-                
-                {imagenesPreview.length < 5 && (
-                  <button type="button" className="upload-btn" onClick={() => fileInputRef.current.click()} disabled={loading}>
-                    <FaUpload /> {imagenesPreview.length === 0 ? 'Subir Imágenes' : 'Agregar Más'}
-                  </button>
-                )}
-
-                {imagenesPreview.length > 0 && (
-                  <div className="images-preview">
-                    {imagenesPreview.map((image, index) => (
-                      <div key={image.id} className={`image-preview ${index === 0 ? 'primary' : ''}`}>
-                        <img src={image.url} alt={`Preview ${index + 1}`} />
-                        {index === 0 && <span className="primary-badge">Principal</span>}
-                        <button type="button" className="remove-image" onClick={() => removeImage(image.id)}><FaTrash /></button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <p className="upload-info"><FaImage /> JPG, PNG, GIF, WEBP. Max 5MB. ({imagenesPreview.length}/5)</p>
+            <div className="field">
+              <span className="field-label">Imágenes</span>
+              <div className="upl">
+                <AnimatePresence initial={false} mode="popLayout">
+                  {previews.map((img, i) => (
+                    <motion.div key={img.id} layout className="upl__item" initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92, transition: { duration: dur.exit } }} transition={spring.ui}>
+                      <img src={img.url} alt={`Imagen ${i + 1}`} />
+                      {i === 0 && <span className="upl__main">Portada</span>}
+                      {img.isNew && <button type="button" className="upl__del" onClick={() => removeImage(img.id)} aria-label={`Quitar imagen ${i + 1}`}><FaTrash size={11} /></button>}
+                    </motion.div>
+                  ))}
+                  {previews.length < 5 && !locked && (
+                    <motion.button key="add" layout type="button" className="upl__add" onClick={() => fileInputRef.current?.click()} transition={{ duration: dur.fast, ease: ease.out }}>
+                      <FaUpload size={18} /><span>Agregar</span>
+                    </motion.button>
+                  )}
+                </AnimatePresence>
               </div>
+              <input ref={fileInputRef} type="file" hidden multiple accept="image/*" onChange={onFiles} />
+              <span className="field__hint tnum"><span><FaImage size={11} /> JPG, PNG, GIF o WEBP. Máximo 5 MB.</span> {previews.length}/5</span>
             </div>
-
-            <div className="form-group">
-              <label>Etiquetas (opcional)</label>
-              <input type="text" name="tags" value={formData.tags} onChange={handleInputChange} 
-                placeholder="nuevo, original, garantía" disabled={auction?.numeroOfertas > 0} />
+            <div className="field">
+              <label htmlFor="cam-tags">Etiquetas, separadas por comas</label>
+              <input id="cam-tags" className="input" name="tags" value={formData.tags} onChange={onField} disabled={locked} />
             </div>
-
-            <div className="form-group">
-              <label>Condiciones (opcional)</label>
-              <textarea name="condiciones" value={formData.condiciones} onChange={handleInputChange} 
-                placeholder="Términos especiales..." rows="3" maxLength="500" />
-              <span className="char-count">{formData.condiciones.length}/500</span>
+            <div className="field">
+              <label htmlFor="cam-cond">Condiciones (opcional)</label>
+              <textarea id="cam-cond" className="textarea" rows={3} maxLength={500} name="condiciones" value={formData.condiciones} onChange={onField} />
             </div>
-
-            <div className="modal-footer">
-              <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>Cancelar</button>
-              <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? (
-                  <><FaSpinner className="spinning" /> {auction ? 'Actualizando...' : 'Creando...'}</>
-                ) : (
-                  <><FaSave /> {auction ? 'Actualizar' : 'Crear Subasta'}</>
-                )}
-              </button>
-            </div>
-          </form>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+            {error && <p className="alert alert--error" role="alert"><FaExclamationTriangle size={13} /> {error}</p>}
+          </div>
+        </div>
+        <div className="dialog__foot">
+          <button type="button" className="btn" onClick={onClose} disabled={loading}>Cancelar</button>
+          <button type="submit" className="btn btn--primary" disabled={loading}>
+            {loading ? <><FaSpinner className="spin" /> Guardando…</> : auction ? 'Guardar cambios' : 'Publicar subasta'}
+          </button>
+        </div>
+      </form>
+    </Dialog>
   );
 };
 

@@ -34,8 +34,9 @@ const bidSchema = new mongoose.Schema({
     type: String,
     maxlength: [200, 'El mensaje no puede tener más de 200 caracteres']
   },
-  ip: String,
-  userAgent: String,
+  // Solo para auditoría: nunca salen en las respuestas de la API.
+  ip: { type: String, select: false },
+  userAgent: { type: String, select: false },
   esGanadora: {
     type: Boolean,
     default: false
@@ -71,10 +72,10 @@ const bidSchema = new mongoose.Schema({
 bidSchema.pre(/^find/, function(next) {
   this.populate({
     path: 'postor',
-    select: 'nombre apellido email tipoUsuario'
+    select: 'nombre apellido'
   }).populate({
     path: 'producto',
-    select: 'titulo precioActual estado fechaFin'
+    select: 'titulo precioActual estado fechaFin imagenes'
   });
   next();
 });
@@ -113,6 +114,26 @@ bidSchema.statics.marcarOfertasComoSuperadas = function(productoId, montoNuevo) 
       $set: { estado: 'superada' }
     }
   );
+};
+
+// Rehace precio, contador y oferta líder a partir de las ofertas que quedan.
+bidSchema.statics.recalcularProducto = async function(productoId) {
+  const Product = mongoose.model('Product');
+  const producto = await Product.findById(productoId).select('precioInicial');
+  if (!producto) return;
+
+  const vivas = await this.countDocuments({ producto: productoId, estado: { $ne: 'retirada' } });
+  const mejor = await this.findOne({ producto: productoId, estado: { $in: ['activa', 'superada'] } }).sort({ monto: -1 });
+
+  if (mejor && mejor.estado !== 'activa') {
+    mejor.estado = 'activa';
+    await mejor.save();
+  }
+
+  await Product.findByIdAndUpdate(productoId, {
+    precioActual: mejor ? mejor.monto : producto.precioInicial,
+    numeroOfertas: vivas
+  });
 };
 
 module.exports = mongoose.model('Bid', bidSchema);

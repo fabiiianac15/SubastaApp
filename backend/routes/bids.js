@@ -1,5 +1,9 @@
 const express = require('express');
 const router = express.Router();
+const validarId = require('../middleware/validarId');
+
+router.param('id', validarId);
+router.param('productId', validarId);
 const {
   crearOferta,
   obtenerOfertasProducto,
@@ -8,12 +12,12 @@ const {
   obtenerHistorialOfertas,
   pagarOfertaGanadora
 } = require('../controllers/bidController');
-const { protect, authorize } = require('../middleware/auth');
+const { protect, optionalAuth, authorize } = require('../middleware/auth');
 const { validateBid } = require('../middleware/validators');
 
 // Rutas de ofertas por producto
 router.post('/products/:productId/ofertas', protect, authorize('comprador'), validateBid, crearOferta);
-router.get('/products/:productId/ofertas', obtenerOfertasProducto);
+router.get('/products/:productId/ofertas', optionalAuth, obtenerOfertasProducto);
 router.get('/products/:productId/historial-ofertas', protect, obtenerHistorialOfertas);
 
 // Rutas de ofertas del usuario

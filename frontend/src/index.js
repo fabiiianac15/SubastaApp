@@ -1,8 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './index.css';
+import '@fontsource-variable/big-shoulders-display';
+import '@fontsource-variable/hanken-grotesk';
+import './styles/system.css';
+import { initTheme } from './lib/theme';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+
+initTheme();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

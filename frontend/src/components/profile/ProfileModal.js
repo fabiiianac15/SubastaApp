@@ -1,673 +1,272 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FaTimes, 
-  FaUser, 
-  FaEnvelope, 
-  FaPhone, 
-  FaMapMarkerAlt, 
-  FaEdit,
-  FaCamera,
-  FaSave,
-  FaEye,
-  FaEyeSlash,
-  FaGavel,
-  FaTrophy,
-  FaShoppingBag,
-  FaStar,
-  FaTrash,
-  FaExclamationTriangle
-} from 'react-icons/fa';
+import React, { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { FaCamera, FaExclamationTriangle, FaTimes, FaTrash, FaUser } from 'react-icons/fa';
 import { useAuth, useAuthActions } from '../../context/AuthContext';
 import authService from '../../services/authService';
-import './ProfileModal.css';
+import productService from '../../services/productService';
+import { dur, ease } from '../../lib/motion';
+import Dialog from '../ui/Dialog';
+import { Segmented } from '../ui/Controls';
+import '../../styles/modals.css';
+
+const fromUser = (user) => ({
+  nombre: user?.nombre || '',
+  apellido: user?.apellido || '',
+  email: user?.email || '',
+  telefono: user?.telefono || '',
+  direccion: {
+    calle: user?.direccion?.calle || '',
+    ciudad: user?.direccion?.ciudad || '',
+    codigoPostal: user?.direccion?.codigoPostal || '',
+    pais: user?.direccion?.pais || '',
+  },
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+});
 
 const ProfileModal = ({ isOpen, onClose }) => {
   const { user } = useAuth();
   const { logout, updateUser } = useAuthActions();
+  const [tab, setTab] = useState('datos');
   const [isEditing, setIsEditing] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
-  const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [formData, setFormData] = useState({
-    nombre: user?.nombre || '',
-    apellido: user?.apellido || '',
-    email: user?.email || '',
-    telefono: user?.telefono || '',
-    direccion: {
-      calle: user?.direccion?.calle || '',
-      ciudad: user?.direccion?.ciudad || '',
-      codigoPostal: user?.direccion?.codigoPostal || '',
-      pais: user?.direccion?.pais || ''
-    },
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  });
-  
+  const [total, setTotal] = useState(null);
+  const [formData, setFormData] = useState(() => fromUser(user));
   const fileInputRef = useRef(null);
+  const esVendedor = user?.tipoUsuario === 'vendedor';
 
-  // Actualizar formData cuando user cambie
+  useEffect(() => setFormData(fromUser(user)), [user]);
+
   useEffect(() => {
-    if (user) {
-      setFormData({
-        nombre: user.nombre || '',
-        apellido: user.apellido || '',
-        email: user.email || '',
-        telefono: user.telefono || '',
-        direccion: {
-          calle: user.direccion?.calle || '',
-          ciudad: user.direccion?.ciudad || '',
-          codigoPostal: user.direccion?.codigoPostal || '',
-          pais: user.direccion?.pais || ''
-        },
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      });
+    if (!user?._id) return;
+    try {
+      setProfileImage(localStorage.getItem(`profileImage_${user._id}`));
+    } catch {
+      setProfileImage(null);
     }
-  }, [user]);
+  }, [user, isOpen]);
 
-  // Cargar imagen de perfil del localStorage
+  // Actividad real de la cuenta en lugar de cifras de relleno.
   useEffect(() => {
-    if (user?._id) {
-      const savedImage = localStorage.getItem(`profileImage_${user._id}`);
-      if (savedImage) {
-        setProfileImage(savedImage);
-      }
-    }
-  }, [user]);
+    if (!isOpen || !user) return undefined;
+    let alive = true;
+    const req = esVendedor
+      ? productService.obtenerMisSubastas({ limite: 1 })
+      : productService.obtenerMisOfertas({ limite: 1 });
+    req.then((r) => alive && setTotal(r.pagination?.total ?? 0)).catch(() => alive && setTotal(null));
+    return () => {
+      alive = false;
+    };
+  }, [isOpen, user, esVendedor]);
 
-  // Estadísticas del usuario (datos ficticios por ahora)
-  const userStats = {
-    totalAuctions: user?.tipoUsuario === 'vendedor' ? 15 : 0,
-    totalBids: user?.tipoUsuario === 'comprador' ? 47 : 0,
-    wonAuctions: user?.tipoUsuario === 'comprador' ? 8 : 0,
-    soldItems: user?.tipoUsuario === 'vendedor' ? 12 : 0,
-    rating: 4.8,
-    totalRatings: 156
+  const flash = (msg) => {
+    setSuccess(msg);
+    setTimeout(() => setSuccess(''), 3000);
   };
 
-  const handleInputChange = (e) => {
+  const onField = (e) => {
     const { name, value } = e.target;
-    
-    if (name.includes('direccion.')) {
-      const field = name.split('.')[1];
-      setFormData(prev => ({
-        ...prev,
-        direccion: {
-          ...prev.direccion,
-          [field]: value
-        }
-      }));
+    if (name.startsWith('direccion.')) {
+      const key = name.split('.')[1];
+      setFormData((p) => ({ ...p, direccion: { ...p.direccion, [key]: value } }));
     } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
+      setFormData((p) => ({ ...p, [name]: value }));
     }
   };
 
-  const handleImageUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfileImage(reader.result);
+  const onImage = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setProfileImage(reader.result);
+      try {
         localStorage.setItem(`profileImage_${user._id}`, reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
+      } catch {
+        setError('La imagen es demasiado grande para guardarla en este navegador.');
+      }
+      window.dispatchEvent(new Event('profile-image'));
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSave = async () => {
-    // EDITAR PERFIL: Actualiza nombre, apellido, email, teléfono, dirección (calle, ciudad, código postal, país)
     setLoading(true);
     setError('');
     setSuccess('');
-
     try {
-      const updateData = {
-        nombre: formData.nombre,
-        apellido: formData.apellido,
-        email: formData.email,
-        telefono: formData.telefono,
-        direccion: formData.direccion
-      };
-
-      const response = await authService.updateProfile(updateData);
-      
-      if (response.success) {
-        updateUser(response.data);
-        setSuccess('Perfil actualizado exitosamente');
+      const { nombre, apellido, email, telefono, direccion } = formData;
+      const res = await authService.updateProfile({ nombre, apellido, email, telefono, direccion });
+      if (res.success) {
+        updateUser(res.data);
         setIsEditing(false);
-        
-        // Limpiar mensaje después de 3 segundos
-        setTimeout(() => setSuccess(''), 3000);
+        flash('Perfil actualizado.');
       }
     } catch (err) {
-      setError(err.message || 'Error al actualizar el perfil');
+      setError(err.message || 'No se pudo actualizar el perfil.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePasswordChange = async () => {
+  const handlePassword = async (e) => {
+    e.preventDefault();
     setError('');
     setSuccess('');
-
-    if (!formData.currentPassword || !formData.newPassword || !formData.confirmPassword) {
-      setError('Por favor complete todos los campos de contraseña');
-      return;
+    const { currentPassword, newPassword, confirmPassword } = formData;
+    if (!currentPassword || !newPassword || !confirmPassword) return setError('Completa los tres campos de contraseña.');
+    if (newPassword !== confirmPassword) return setError('Las contraseñas nuevas no coinciden.');
+    if (newPassword.length < 6 || !/[a-z]/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      return setError('La contraseña nueva necesita 6 caracteres o más, con mayúscula, minúscula y número.');
     }
-
-    if (formData.newPassword !== formData.confirmPassword) {
-      setError('Las contraseñas no coinciden');
-      return;
-    }
-
-    if (formData.newPassword.length < 6) {
-      setError('La nueva contraseña debe tener al menos 6 caracteres');
-      return;
-    }
-
     setLoading(true);
-
     try {
-      const response = await authService.changePassword({
-        currentPassword: formData.currentPassword,
-        newPassword: formData.newPassword
-      });
-
-      if (response.success) {
-        setSuccess('Contraseña actualizada exitosamente');
-        setShowPasswordChange(false);
-        setFormData(prev => ({
-          ...prev,
-          currentPassword: '',
-          newPassword: '',
-          confirmPassword: ''
-        }));
-
-        setTimeout(() => setSuccess(''), 3000);
+      const res = await authService.changePassword({ currentPassword, newPassword });
+      if (res.success) {
+        setFormData((p) => ({ ...p, currentPassword: '', newPassword: '', confirmPassword: '' }));
+        flash('Contraseña actualizada.');
       }
     } catch (err) {
-      setError(err.message || 'Error al cambiar la contraseña');
+      setError(err.message || 'No se pudo cambiar la contraseña.');
     } finally {
       setLoading(false);
     }
+    return undefined;
   };
 
-  const handleDeleteAccount = async () => {
-    // BORRAR PERFIL: Elimina cuenta requiriendo contraseña, borra todos los datos del usuario
-    if (!deletePassword) {
-      setError('Por favor ingrese su contraseña para confirmar');
-      return;
-    }
-
+  const handleDelete = async () => {
+    if (!deletePassword) return setError('Escribe tu contraseña para confirmar.');
     setLoading(true);
     setError('');
-
     try {
-      const response = await authService.deleteAccount(deletePassword);
-
-      if (response.success) {
-        // Limpiar todo y cerrar sesión
+      const res = await authService.deleteAccount(deletePassword);
+      if (res.success) {
         localStorage.removeItem(`profileImage_${user._id}`);
         logout();
         onClose();
         window.location.href = '/';
       }
     } catch (err) {
-      setError(err.message || 'Error al eliminar la cuenta');
+      setError(err.message || 'No se pudo eliminar la cuenta.');
     } finally {
       setLoading(false);
     }
+    return undefined;
   };
 
-  if (!isOpen) return null;
+  const desde = user?.fechaRegistro || user?.createdAt;
+  const field = (name, label, props = {}) => (
+    <div className="field">
+      <label htmlFor={`pf-${name}`}>{label}</label>
+      <input
+        id={`pf-${name}`}
+        name={name}
+        className="input"
+        disabled={!isEditing}
+        value={name.startsWith('direccion.') ? formData.direccion[name.split('.')[1]] : formData[name]}
+        onChange={onField}
+        {...props}
+      />
+    </div>
+  );
 
   return (
-    <AnimatePresence>
-      <motion.div 
-        className="profile-modal-overlay"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-      >
-        <motion.div 
-          className="profile-modal-content"
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          onClick={e => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="profile-modal-header">
-            <h2>Mi Perfil</h2>
-            <div className="header-actions">
-              {!isEditing ? (
-                <button 
-                  className="edit-btn"
-                  onClick={() => setIsEditing(true)}
-                  disabled={loading}
-                >
-                  <FaEdit /> Editar
-                </button>
-              ) : (
-                <div className="edit-actions">
-                  <button 
-                    className="save-btn"
-                    onClick={handleSave}
-                    disabled={loading}
-                  >
-                    <FaSave /> {loading ? 'Guardando...' : 'Guardar'}
-                  </button>
-                  <button 
-                    className="cancel-btn"
-                    onClick={() => {
-                      setIsEditing(false);
-                      setError('');
-                      setSuccess('');
-                      setFormData({
-                        nombre: user?.nombre || '',
-                        apellido: user?.apellido || '',
-                        email: user?.email || '',
-                        telefono: user?.telefono || '',
-                        direccion: {
-                          calle: user?.direccion?.calle || '',
-                          ciudad: user?.direccion?.ciudad || '',
-                          codigoPostal: user?.direccion?.codigoPostal || '',
-                          pais: user?.direccion?.pais || ''
-                        }
-                      });
-                    }}
-                    disabled={loading}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              )}
-              <button 
-                className="close-btn"
-                onClick={onClose}
-              >
-                <FaTimes />
-              </button>
-            </div>
+    <Dialog open={isOpen} onClose={onClose} label="Mi perfil" width={680}>
+      <div className="dialog__scroll">
+        <div className="profile__hero">
+          <div className="profile__avatar">
+            {profileImage ? <img src={profileImage} alt="" /> : <FaUser size={30} />}
+            <button type="button" className="profile__photo" aria-label="Cambiar foto" onClick={() => fileInputRef.current?.click()}><FaCamera size={13} /></button>
+            <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={onImage} />
           </div>
+          <div className="profile__who">
+            <h2 className="display">{user?.nombre} {user?.apellido}</h2>
+            <p className="muted">
+              {esVendedor ? 'Vendedor' : 'Comprador'}
+              {total !== null && ` · ${total} ${esVendedor ? (total === 1 ? 'subasta' : 'subastas') : total === 1 ? 'oferta' : 'ofertas'}`}
+              {desde && ` · Desde ${new Date(desde).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })}`}
+            </p>
+          </div>
+          <button type="button" className="icon-btn profile__close" onClick={onClose} aria-label="Cerrar perfil"><FaTimes size={16} /></button>
+        </div>
 
-          {/* Mensajes de error y éxito */}
-          {error && (
-            <motion.div 
-              className="alert alert-error"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <FaExclamationTriangle /> {error}
-            </motion.div>
-          )}
-          
-          {success && (
-            <motion.div 
-              className="alert alert-success"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              ✓ {success}
-            </motion.div>
-          )}
+        <div className="dialog__body">
+          <Segmented id="profile" label="Secciones del perfil" value={tab} onChange={(v) => { setTab(v); setError(''); setSuccess(''); }} options={[{ value: 'datos', label: 'Datos' }, { value: 'seguridad', label: 'Seguridad' }]} />
+          <AnimatePresence initial={false}>
+            {error && <motion.p key="e" className="alert alert--error" role="alert" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><FaExclamationTriangle size={13} /> {error}</motion.p>}
+            {success && <motion.p key="s" className="alert alert--ok" role="status" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>{success}</motion.p>}
+          </AnimatePresence>
 
-          {/* Content */}
-          <div className="profile-modal-body">
-            <div className="profile-content">
-              {/* Left Column - Profile Info */}
-              <div className="profile-info">
-                {/* Avatar Section */}
-                <div className="avatar-section">
-                  <div className="avatar-container">
-                    {profileImage ? (
-                      <img src={profileImage} alt="Profile" />
-                    ) : (
-                      <div className="avatar-placeholder">
-                        <FaUser />
-                      </div>
-                    )}
-                    {isEditing && (
-                      <button 
-                        className="change-avatar-btn"
-                        onClick={() => fileInputRef.current.click()}
-                      >
-                        <FaCamera />
-                      </button>
-                    )}
-                    <input 
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      style={{ display: 'none' }}
-                    />
-                  </div>
-                  
-                  <div className="user-basic-info">
-                    <h3>{user?.nombre} {user?.apellido}</h3>
-                    <p className="user-type-badge">
-                      <FaGavel /> {user?.tipoUsuario}
-                    </p>
-                    <div className="user-rating">
-                      <div className="stars">
-                        {[...Array(5)].map((_, i) => (
-                          <FaStar 
-                            key={i} 
-                            className={i < Math.floor(userStats.rating) ? 'filled' : 'empty'} 
-                          />
-                        ))}
-                      </div>
-                      <span>{userStats.rating} ({userStats.totalRatings} reseñas)</span>
-                    </div>
-                    <p className="member-since">
-                      Miembro desde {new Date(user?.fechaRegistro).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Stats Section */}
-                <div className="stats-section">
-                  <h4>Estadísticas</h4>
-                  <div className="stats-grid">
-                    {user?.tipoUsuario === 'vendedor' ? (
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div key={tab} className="profile__tab" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: 0.1 } }} transition={{ duration: dur.fast, ease: ease.out }}>
+              {tab === 'datos' ? (
+                <>
+                  <div className="form-row">{field('nombre', 'Nombre', { autoComplete: 'given-name' })}{field('apellido', 'Apellido', { autoComplete: 'family-name' })}</div>
+                  <div className="form-row">{field('email', 'Correo', { type: 'email', autoComplete: 'email' })}{field('telefono', 'Teléfono', { type: 'tel', autoComplete: 'tel' })}</div>
+                  {field('direccion.calle', 'Dirección', { autoComplete: 'street-address' })}
+                  <div className="form-row">{field('direccion.ciudad', 'Ciudad')}{field('direccion.codigoPostal', 'Código postal')}</div>
+                  {field('direccion.pais', 'País')}
+                  <div className="profile__actions">
+                    {isEditing ? (
                       <>
-                        <div className="stat-item">
-                          <FaGavel className="stat-icon" />
-                          <div>
-                            <span className="stat-value">{userStats.totalAuctions}</span>
-                            <span className="stat-label">Subastas Creadas</span>
-                          </div>
-                        </div>
-                        <div className="stat-item">
-                          <FaShoppingBag className="stat-icon" />
-                          <div>
-                            <span className="stat-value">{userStats.soldItems}</span>
-                            <span className="stat-label">Productos Vendidos</span>
-                          </div>
-                        </div>
+                        <button type="button" className="btn" disabled={loading} onClick={() => { setIsEditing(false); setError(''); setFormData(fromUser(user)); }}>Cancelar</button>
+                        <button type="button" className="btn btn--primary" disabled={loading} onClick={handleSave}>{loading ? 'Guardando…' : 'Guardar cambios'}</button>
                       </>
                     ) : (
-                      <>
-                        <div className="stat-item">
-                          <FaEye className="stat-icon" />
-                          <div>
-                            <span className="stat-value">{userStats.totalBids}</span>
-                            <span className="stat-label">Ofertas Realizadas</span>
-                          </div>
-                        </div>
-                        <div className="stat-item">
-                          <FaTrophy className="stat-icon" />
-                          <div>
-                            <span className="stat-value">{userStats.wonAuctions}</span>
-                            <span className="stat-label">Subastas Ganadas</span>
-                          </div>
-                        </div>
-                      </>
+                      <button type="button" className="btn" onClick={() => setIsEditing(true)}>Editar datos</button>
                     )}
                   </div>
-                </div>
-              </div>
-
-              {/* Right Column - Form */}
-              <div className="profile-form">
-                <div className="form-section">
-                  <h4>Información Personal</h4>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Nombre</label>
-                      <div className="input-with-icon">
-                        <FaUser className="input-icon" />
-                        <input
-                          type="text"
-                          name="nombre"
-                          value={formData.nombre}
-                          onChange={handleInputChange}
-                          disabled={!isEditing}
-                        />
+                </>
+              ) : (
+                <>
+                  <form className="profile__tab" onSubmit={handlePassword}>
+                    <div className="field">
+                      <label htmlFor="pw-now">Contraseña actual</label>
+                      <input id="pw-now" className="input" type="password" name="currentPassword" autoComplete="current-password" value={formData.currentPassword} onChange={onField} />
+                    </div>
+                    <div className="form-row">
+                      <div className="field">
+                        <label htmlFor="pw-new">Contraseña nueva</label>
+                        <input id="pw-new" className="input" type="password" name="newPassword" autoComplete="new-password" value={formData.newPassword} onChange={onField} />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="pw-again">Repítela</label>
+                        <input id="pw-again" className="input" type="password" name="confirmPassword" autoComplete="new-password" value={formData.confirmPassword} onChange={onField} />
                       </div>
                     </div>
-                    <div className="form-group">
-                      <label>Apellido</label>
-                      <div className="input-with-icon">
-                        <FaUser className="input-icon" />
-                        <input
-                          type="text"
-                          name="apellido"
-                          value={formData.apellido}
-                          onChange={handleInputChange}
-                          disabled={!isEditing}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Email</label>
-                    <div className="input-with-icon">
-                      <FaEnvelope className="input-icon" />
-                      <input
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleInputChange}
-                        disabled={!isEditing}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Teléfono</label>
-                    <div className="input-with-icon">
-                      <FaPhone className="input-icon" />
-                      <input
-                        type="tel"
-                        name="telefono"
-                        value={formData.telefono}
-                        onChange={handleInputChange}
-                        disabled={!isEditing}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="form-section">
-                  <h4><FaMapMarkerAlt /> Dirección</h4>
-                  <div className="form-group">
-                    <label>Calle</label>
-                    <input
-                      type="text"
-                      name="direccion.calle"
-                      value={formData.direccion.calle}
-                      onChange={handleInputChange}
-                      disabled={!isEditing}
-                    />
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Ciudad</label>
-                      <input
-                        type="text"
-                        name="direccion.ciudad"
-                        value={formData.direccion.ciudad}
-                        onChange={handleInputChange}
-                        disabled={!isEditing}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Código Postal</label>
-                      <input
-                        type="text"
-                        name="direccion.codigoPostal"
-                        value={formData.direccion.codigoPostal}
-                        onChange={handleInputChange}
-                        disabled={!isEditing}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label>País</label>
-                    <input
-                      type="text"
-                      name="direccion.pais"
-                      value={formData.direccion.pais}
-                      onChange={handleInputChange}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                </div>
-
-                {/* Password Section */}
-                <div className="form-section">
-                  <div className="section-header">
-                    <h4>Seguridad</h4>
-                    <button 
-                      className="toggle-password-btn"
-                      onClick={() => {
-                        setShowPasswordChange(!showPasswordChange);
-                        setError('');
-                        setSuccess('');
-                      }}
-                    >
-                      {showPasswordChange ? <FaEyeSlash /> : <FaEye />}
-                      {showPasswordChange ? 'Ocultar' : 'Cambiar Contraseña'}
-                    </button>
-                  </div>
-
-                  <AnimatePresence>
-                    {showPasswordChange && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="password-change-form"
-                      >
-                        <div className="form-group">
-                          <label>Contraseña Actual</label>
-                          <input
-                            type="password"
-                            name="currentPassword"
-                            value={formData.currentPassword}
-                            onChange={handleInputChange}
-                            placeholder="Ingresa tu contraseña actual"
-                          />
+                    <div className="profile__actions"><button type="submit" className="btn btn--primary" disabled={loading}>{loading ? 'Actualizando…' : 'Actualizar contraseña'}</button></div>
+                  </form>
+                  <div className="profile__danger">
+                    <h3>Eliminar la cuenta</h3>
+                    <p className="muted">Se borran tus datos de forma permanente. No se puede deshacer.</p>
+                    {!showDeleteConfirm ? (
+                      <button type="button" className="btn btn--danger" onClick={() => { setShowDeleteConfirm(true); setError(''); }}><FaTrash size={13} /> Eliminar mi cuenta</button>
+                    ) : (
+                      <motion.div className="profile__tab" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}>
+                        <div className="field">
+                          <label htmlFor="pw-del">Escribe tu contraseña para confirmar</label>
+                          <input id="pw-del" className="input" type="password" autoComplete="current-password" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} />
                         </div>
-
-                        <div className="form-row">
-                          <div className="form-group">
-                            <label>Nueva Contraseña</label>
-                            <input
-                              type="password"
-                              name="newPassword"
-                              value={formData.newPassword}
-                              onChange={handleInputChange}
-                              placeholder="Nueva contraseña"
-                            />
-                          </div>
-                          <div className="form-group">
-                            <label>Confirmar Contraseña</label>
-                            <input
-                              type="password"
-                              name="confirmPassword"
-                              value={formData.confirmPassword}
-                              onChange={handleInputChange}
-                              placeholder="Confirma la contraseña"
-                            />
-                          </div>
+                        <div className="profile__actions">
+                          <button type="button" className="btn" disabled={loading} onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setError(''); }}>Conservar cuenta</button>
+                          <button type="button" className="btn btn--danger" disabled={loading} onClick={handleDelete}>{loading ? 'Eliminando…' : 'Sí, eliminar'}</button>
                         </div>
-
-                        <button 
-                          className="change-password-btn"
-                          onClick={handlePasswordChange}
-                          disabled={loading}
-                        >
-                          {loading ? 'Actualizando...' : 'Actualizar Contraseña'}
-                        </button>
                       </motion.div>
                     )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Delete Account Section */}
-                <div className="form-section danger-zone">
-                  <h4><FaExclamationTriangle /> Zona de Peligro</h4>
-                  <p className="danger-warning">
-                    Una vez que elimines tu cuenta, no hay vuelta atrás. Por favor, asegúrate.
-                  </p>
-                  
-                  {!showDeleteConfirm ? (
-                    <button 
-                      className="delete-account-btn"
-                      onClick={() => {
-                        setShowDeleteConfirm(true);
-                        setError('');
-                        setSuccess('');
-                      }}
-                    >
-                      <FaTrash /> Eliminar mi cuenta
-                    </button>
-                  ) : (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="delete-confirm-box"
-                    >
-                      <h5>¿Estás seguro de que deseas eliminar tu cuenta?</h5>
-                      <p>Esta acción no se puede deshacer. Todos tus datos serán eliminados permanentemente.</p>
-                      
-                      <div className="form-group">
-                        <label>Confirma tu contraseña</label>
-                        <input
-                          type="password"
-                          value={deletePassword}
-                          onChange={(e) => setDeletePassword(e.target.value)}
-                          placeholder="Ingresa tu contraseña"
-                        />
-                      </div>
-
-                      <div className="delete-actions">
-                        <button 
-                          className="confirm-delete-btn"
-                          onClick={handleDeleteAccount}
-                          disabled={loading}
-                        >
-                          <FaTrash /> {loading ? 'Eliminando...' : 'Sí, eliminar mi cuenta'}
-                        </button>
-                        <button 
-                          className="cancel-delete-btn"
-                          onClick={() => {
-                            setShowDeleteConfirm(false);
-                            setDeletePassword('');
-                            setError('');
-                          }}
-                          disabled={loading}
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
+    </Dialog>
   );
 };
 

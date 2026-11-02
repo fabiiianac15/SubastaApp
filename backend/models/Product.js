@@ -148,14 +148,14 @@ productSchema.virtual('haTerminado').get(function() {
 productSchema.pre('find', function() {
   this.populate({
     path: 'vendedor',
-    select: 'nombre apellido email tipoUsuario'
+    select: 'nombre apellido tipoUsuario'
   });
 });
 
 productSchema.pre('findOne', function() {
   this.populate({
     path: 'vendedor',
-    select: 'nombre apellido email tipoUsuario'
+    select: 'nombre apellido tipoUsuario'
   });
 });
 
@@ -181,8 +181,10 @@ productSchema.statics.findActive = function() {
 // Método para verificar si un usuario puede ver la subasta
 productSchema.methods.puedeVerSubasta = function(userId) {
   if (this.tipoSubasta === 'publica') return true;
-  if (this.vendedor._id.toString() === userId) return true;
-  return this.usuariosInvitados.includes(userId);
+  if (!userId) return false;
+  const id = String(userId);
+  if (String(this.vendedor?._id || this.vendedor) === id) return true;
+  return this.usuariosInvitados.some((invitado) => String(invitado?._id || invitado) === id);
 };
 
 // Método para calcular el próximo incremento mínimo

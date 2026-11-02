@@ -1,494 +1,298 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FaGavel, 
-  FaHome, 
-  FaUser, 
-  FaPlus, 
-  FaEye, 
-  FaChartBar, 
-  FaCog, 
-  FaSignOutAlt, 
-  FaBars, 
-  FaTimes,
-  FaBell,
-  FaSearch,
-  FaCamera,
-  FaHeart,
-  FaListAlt,
-  FaHandHolding,
-  FaChevronLeft,
-  FaChevronRight
+import React, { useEffect, useRef, useState } from 'react';
+import { NavLink, Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  FaBars, FaBell, FaCamera, FaChartBar, FaChevronLeft, FaCog, FaEye, FaHandHolding, FaHeart, FaHome,
+  FaListAlt, FaMagic, FaPlus, FaSearch, FaSignOutAlt, FaUser, FaWaveSquare,
 } from 'react-icons/fa';
 import { useAuth, useAuthActions } from '../../context/AuthContext';
 import ProfileModal from '../profile/ProfileModal';
-import LoadingTransition from '../common/LoadingTransition';
 import NotificationPanel from '../common/NotificationPanel';
+import Dialog from '../ui/Dialog';
+import { Logo } from '../ui/Gavel';
 import notificationService from '../../services/notificationService';
-import './Layout.css';
+import { dur, ease, spring } from '../../lib/motion';
+import '../ui/ui.css';
+import '../../styles/shell.css';
 
-const Layout = ({ children, currentPage = 'home', onPageChange }) => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Iniciar colapsado
-  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const [showImageUpload, setShowImageUpload] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const [profileImage, setProfileImage] = useState(null);
-  const [isNavigating, setIsNavigating] = useState(false);
-  const [navigationTarget, setNavigationTarget] = useState('');
-  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+const buildNav = (tipo) => [
+  { icon: FaHome, label: 'Inicio', to: '/dashboard', end: true, primary: true },
+  { icon: FaEye, label: 'Explorar', to: '/dashboard/auctions', primary: true },
+  ...(tipo === 'vendedor'
+    ? [
+        { icon: FaPlus, label: 'Crear subasta', short: 'Crear', to: '/dashboard/create', primary: true },
+        { icon: FaListAlt, label: 'Mis subastas', short: 'Subastas', to: '/dashboard/my-auctions', primary: true },
+      ]
+    : [{ icon: FaHandHolding, label: 'Mis pujas', short: 'Pujas', to: '/dashboard/my-bids', primary: true }]),
+  { icon: FaHeart, label: 'Favoritos', to: '/dashboard/favorites', primary: tipo !== 'vendedor' },
+  { icon: FaMagic, label: 'Para ti', to: '/dashboard/recommendations' },
+  { icon: FaChartBar, label: 'Estadísticas', to: '/dashboard/stats' },
+  { icon: FaWaveSquare, label: 'Mi actividad', to: '/dashboard/analytics-stats' },
+  { icon: FaCog, label: 'Ajustes', to: '/dashboard/settings' },
+];
+
+const readStored = (key, fallback) => {
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const Avatar = ({ user, image }) => (
+  <span className="avatar">
+    {image ? <img src={image} alt="" /> : `${user?.nombre?.charAt(0) || ''}${user?.apellido?.charAt(0) || ''}`}
+  </span>
+);
+
+const Layout = () => {
   const { user } = useAuth();
   const { logout } = useAuthActions();
-  const fileInputRef = useRef(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [open, setOpen] = useState(() => readStored('sidebarOpen', 'false') === 'true');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileNav, setMobileNav] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileImage, setProfileImage] = useState(null);
+  const [unread, setUnread] = useState(0);
+  const [query, setQuery] = useState('');
+  const searchRef = useRef(null);
+  const fileRef = useRef(null);
+  const menuRef = useRef(null);
+  const nav = buildNav(user?.tipoUsuario);
 
-  // Cerrar dropdown al hacer click fuera
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (profileDropdownOpen && !event.target.closest('.user-profile-section')) {
-        setProfileDropdownOpen(false);
+    try {
+      localStorage.setItem('sidebarOpen', String(open));
+    } catch {
+      /* preferencia solo de esta sesión */
+    }
+  }, [open]);
+
+  useEffect(() => {
+    const load = () => setProfileImage(readStored(`profileImage_${user?._id}`, null));
+    load();
+    window.addEventListener('profile-image', load);
+    return () => window.removeEventListener('profile-image', load);
+  }, [user?._id]);
+
+  useEffect(() => {
+    if (!user) return undefined;
+    const load = async () => {
+      try {
+        const res = await notificationService.obtenerContadorNoLeidas();
+        setUnread(res.data?.contador || 0);
+      } catch (error) {
+        console.error('Error cargando contador:', error);
       }
     };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [profileDropdownOpen]);
-
-  // Cargar imagen de perfil del localStorage
-  useEffect(() => {
-    const savedImage = localStorage.getItem(`profileImage_${user?._id}`);
-    if (savedImage) {
-      setProfileImage(savedImage);
-    }
+    load();
+    const id = setInterval(load, 30000);
+    return () => clearInterval(id);
   }, [user]);
 
-  // Cargar contador de notificaciones no leídas
   useEffect(() => {
-    if (user) {
-      cargarContadorNotificaciones();
-      // Actualizar cada 30 segundos
-      const interval = setInterval(cargarContadorNotificaciones, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [user]);
+    window.scrollTo(0, 0);
+    setMobileNav(false);
+    setMenuOpen(false);
+  }, [location.pathname]);
 
-  const cargarContadorNotificaciones = async () => {
-    try {
-      const res = await notificationService.obtenerContadorNoLeidas();
-      setUnreadCount(res.data?.contador || 0);
-    } catch (error) {
-      console.error('Error cargando contador:', error);
-    }
-  };
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onDown = (e) => {
+      if (!menuRef.current?.contains(e.target)) setMenuOpen(false);
+    };
+    const onKey = (e) => e.key === 'Escape' && setMenuOpen(false);
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
-  const menuItems = [
-    { icon: FaHome, label: 'Inicio', key: 'dashboard', description: 'Resumen general' },
-    { icon: FaEye, label: 'Explorar', key: 'auctions', description: 'Ver todas' },
-    ...(user?.tipoUsuario === 'vendedor' ? [{ 
-      icon: FaPlus, 
-      label: 'Crear', 
-      key: 'create', 
-      description: 'Nueva subasta' 
-    }] : []),
-    ...(user?.tipoUsuario === 'vendedor' ? [{ 
-      icon: FaListAlt, 
-      label: 'Mis Subastas', 
-      key: 'my-auctions', 
-      description: 'Administrar' 
-    }] : []),
-    ...(user?.tipoUsuario === 'comprador' ? [{ 
-      icon: FaHandHolding, 
-      label: 'Mis Pujas', 
-      key: 'my-bids', 
-      description: 'Historial' 
-    }] : []),
-    { icon: FaHeart, label: 'Favoritos', key: 'favorites', description: 'Guardados' },
-    { icon: FaChartBar, label: 'Estadísticas', key: 'stats', description: 'Análisis' },
-    { icon: FaCog, label: 'Ajustes', key: 'settings', description: 'Configurar' }
-  ];
-
-  const handleImageUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfileImage(reader.result);
-        localStorage.setItem(`profileImage_${user._id}`, reader.result);
-        setShowImageUpload(false);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  // "/" lleva a la búsqueda salvo que ya se esté escribiendo.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   const handleLogout = () => {
     logout();
-    navigate('/'); // Redirigir al landing page
+    navigate('/');
   };
 
-  const handleMenuClick = async (section) => {
-    if (section === currentPage) return;
-    
-    setIsNavigating(true);
-    setNavigationTarget(section);
-    
-    // Simular carga
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Cambiar página
-    if (onPageChange) {
-      onPageChange(section);
-    }
-    // Navegar por ruta según la sección
-    const routesMap = {
-      dashboard: '/dashboard',
-      auctions: '/dashboard/auctions',
-      create: '/dashboard/create',
-      'my-auctions': '/dashboard/my-auctions',
-      'my-bids': '/dashboard/my-bids',
-      favorites: '/dashboard/favorites',
-      stats: '/dashboard/stats',
-      settings: '/dashboard/settings'
-    };
-    if (routesMap[section]) {
-      navigate(routesMap[section]);
-    }
-    
-    setIsNavigating(false);
-    setNavigationTarget('');
-    
-    // Cerrar sidebar en móvil
-    if (window.innerWidth <= 768) {
-      setSidebarOpen(false);
-    }
+  const handleSearch = (e) => {
+    e.preventDefault();
+    const q = query.trim();
+    navigate(`/dashboard/auctions${q ? `?q=${encodeURIComponent(q)}` : ''}`);
   };
 
-  const toggleSidebar = () => {
-    if (window.innerWidth <= 768) {
-      setSidebarOpen(!sidebarOpen);
-    } else {
-      setSidebarCollapsed(!sidebarCollapsed);
-    }
-  };
-
-  const handleNotificationClick = (notification) => {
-    // Cerrar panel
-    setNotificationPanelOpen(false);
-    
-    // Navegar según el tipo de notificación
-    if (notification.accion) {
-      const { tipo, productoId, ofertaId } = notification.accion;
-      
-      if (tipo === 'ver_subasta' && productoId) {
-        // Navegar a la subasta
-        navigate(`/dashboard/auctions`);
-      } else if (tipo === 'ver_puja' && ofertaId) {
-        // Navegar a mis pujas
-        navigate('/dashboard/my-bids');
-      } else if (tipo === 'pagar' && ofertaId) {
-        // Navegar a mis pujas para pagar
-        navigate('/dashboard/my-bids');
+  const handleImage = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      try {
+        localStorage.setItem(`profileImage_${user._id}`, reader.result);
+      } catch {
+        /* imagen demasiado grande para guardarla: se usa solo en esta sesión */
       }
-    }
-    
-    // Recargar contador
-    cargarContadorNotificaciones();
+      setProfileImage(reader.result);
+      window.dispatchEvent(new Event('profile-image'));
+    };
+    reader.readAsDataURL(file);
+    setMenuOpen(false);
   };
 
-  const handleToggleNotifications = () => {
-    setNotificationPanelOpen(!notificationPanelOpen);
+  const handleNotification = (n) => {
+    setNotifOpen(false);
+    const tipo = n.accion?.tipo;
+    if (tipo === 'ver_subasta') navigate('/dashboard/auctions');
+    else if (tipo === 'ver_puja' || tipo === 'pagar') navigate('/dashboard/my-bids');
   };
 
   return (
-    <div className="layout-container">
-      {/* Sidebar */}
-      <AnimatePresence>
-        {(sidebarOpen || window.innerWidth > 768) && (
-          <motion.aside 
-            className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}
-            initial={{ x: sidebarCollapsed ? -200 : -250, width: sidebarCollapsed ? 80 : 250 }}
-            animate={{ x: 0, width: sidebarCollapsed ? 80 : 250 }}
-            exit={{ x: sidebarCollapsed ? -80 : -250 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-          >
-            <div className="sidebar-header">
-              <div className="logo">
-                <FaGavel className="logo-icon" />
-                {!sidebarCollapsed && <h2>SubastaApp</h2>}
-              </div>
-              
-              <div className="sidebar-controls">
-                <button 
-                  className="collapse-sidebar"
-                  onClick={toggleSidebar}
-                  title={sidebarCollapsed ? "Expandir sidebar" : "Colapsar sidebar"}
-                >
-                  {sidebarCollapsed ? <FaChevronRight /> : <FaChevronLeft />}
-                </button>
-                
-                {window.innerWidth <= 768 && (
-                  <button 
-                    className="close-sidebar"
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <FaTimes />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <nav className="sidebar-nav">
-              {menuItems.map((item, index) => (
-                <motion.button
-                  key={item.key}
-                  className={`nav-item ${currentPage === item.key ? 'active' : ''} ${sidebarCollapsed ? 'collapsed' : ''}`}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  whileHover={{ x: sidebarCollapsed ? 0 : 8, scale: sidebarCollapsed ? 1.1 : 1 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => handleMenuClick(item.key)}
-                  title={sidebarCollapsed ? item.label : ''}
-                >
-                  <item.icon className="nav-icon" />
-                  {!sidebarCollapsed && (
-                    <div className="nav-content">
-                      <span className="nav-label">{item.label}</span>
-                      <span className="nav-description">{item.description}</span>
-                    </div>
-                  )}
-                  {currentPage === item.key && (
-                    <motion.div 
-                      className="active-indicator"
-                      layoutId="activeIndicator"
-                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                    />
-                  )}
-                </motion.button>
-              ))}
-            </nav>
-
-            <div className="sidebar-footer">
-              <button 
-                className={`logout-btn ${sidebarCollapsed ? 'collapsed' : ''}`}
-                onClick={handleLogout}
-                title={sidebarCollapsed ? 'Cerrar Sesión' : ''}
-              >
-                <FaSignOutAlt />
-                {!sidebarCollapsed && <span>Cerrar Sesión</span>}
-              </button>
-            </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
-
-      {/* Main Content */}
-      <div className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${!sidebarOpen && window.innerWidth <= 768 ? 'sidebar-closed' : ''}`}>
-        {/* Top Navbar */}
-        <header className="top-navbar">
-          <div className="navbar-left">
-            <button 
-              className="menu-toggle"
-              onClick={toggleSidebar}
-            >
-              {sidebarCollapsed || (!sidebarOpen && window.innerWidth <= 768) ? <FaBars /> : <FaChevronLeft />}
-            </button>
-            
-            <div className="search-bar">
-              <FaSearch className="search-icon" />
-              <input 
-                type="text" 
-                placeholder="Buscar subastas..." 
-              />
-            </div>
-          </div>
-
-          <div className="navbar-right">
-            <button 
-              className="notification-btn"
-              onClick={handleToggleNotifications}
-            >
-              <FaBell />
-              {unreadCount > 0 && (
-                <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+    <div className={`shell ${open ? 'is-open' : ''}`}>
+      <aside className="rail" aria-label="Navegación principal">
+        <div className="rail__head">
+          <Link to="/" className="rail__logo" aria-label="SubastApp, página pública"><Logo withText={open} /></Link>
+        </div>
+        <nav className="rail__nav">
+          {nav.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end} className="rail__link" aria-label={open ? undefined : item.label}>
+              {({ isActive }) => (
+                <>
+                  {isActive && <motion.span layoutId="rail-active" className="rail__active" transition={spring.ui} />}
+                  <item.icon size={18} className="rail__icon" />
+                  {open && <span className="rail__label">{item.label}</span>}
+                  {!open && <span className="rail__tip" role="tooltip">{item.label}</span>}
+                </>
               )}
-            </button>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="rail__foot">
+          <button type="button" className="rail__link" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label={open ? 'Contraer menú' : 'Expandir menú'}>
+            <motion.span className="rail__icon" animate={{ rotate: open ? 0 : 180 }} transition={spring.ui} style={{ display: 'grid' }}>
+              <FaChevronLeft size={15} />
+            </motion.span>
+            {open && <span className="rail__label">Contraer</span>}
+            {!open && <span className="rail__tip" role="tooltip">Expandir</span>}
+          </button>
+        </div>
+      </aside>
 
-            <div className="user-profile-section">
-              <button 
-                className="user-profile-btn"
-                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-              >
-                <div className="user-avatar">
-                  {profileImage ? (
-                    <img src={profileImage} alt="Profile" />
-                  ) : (
-                    <div className="avatar-placeholder">
-                      {user?.nombre?.charAt(0)}{user?.apellido?.charAt(0)}
-                    </div>
-                  )}
-                  <div className="avatar-status"></div>
-                </div>
-                <div className="user-info">
-                  <span className="user-name">{user?.nombre} {user?.apellido}</span>
-                  <span className="user-type">{user?.tipoUsuario}</span>
-                </div>
-              </button>
-
+      <div className="shell__main">
+        <header className="topbar">
+          <Link to="/dashboard" className="topbar__logo" aria-label="Inicio"><Logo withText={false} /></Link>
+          <form className="search" role="search" onSubmit={handleSearch}>
+            <FaSearch size={15} aria-hidden="true" />
+            <input
+              ref={searchRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar lotes"
+              aria-label="Buscar subastas"
+            />
+            <kbd aria-hidden="true">/</kbd>
+          </form>
+          <div className="topbar__right">
+            <button type="button" className="icon-btn" onClick={() => setNotifOpen(true)} aria-label={`Notificaciones${unread ? `, ${unread} sin leer` : ''}`}>
+              <FaBell size={18} />
               <AnimatePresence>
-                {profileDropdownOpen && (
-                  <motion.div 
-                    className="profile-dropdown"
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.2 }}
+                {unread > 0 && (
+                  <motion.span key="badge" className="badge tnum" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} transition={spring.ui}>
+                    {unread > 99 ? '99+' : unread}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
+            <div className="usermenu" ref={menuRef}>
+              <button type="button" className="usermenu__btn" onClick={() => setMenuOpen((v) => !v)} aria-haspopup="menu" aria-expanded={menuOpen}>
+                <Avatar user={user} image={profileImage} />
+                <span className="usermenu__id">
+                  <strong>{user?.nombre}</strong>
+                  <small>{user?.tipoUsuario === 'vendedor' ? 'Vendedor' : 'Comprador'}</small>
+                </span>
+              </button>
+              <AnimatePresence>
+                {menuOpen && (
+                  <motion.div
+                    className="popover"
+                    role="menu"
+                    initial={{ opacity: 0, scale: 0.96, y: -4 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.12 } }}
+                    transition={{ duration: dur.fast, ease: ease.out }}
                   >
-                    <div className="dropdown-header">
-                      <div className="dropdown-avatar">
-                        {profileImage ? (
-                          <img src={profileImage} alt="Profile" />
-                        ) : (
-                          <div className="avatar-placeholder">
-                            {user?.nombre?.charAt(0)}{user?.apellido?.charAt(0)}
-                          </div>
-                        )}
-                        <button 
-                          className="change-photo-btn"
-                          onClick={() => setShowImageUpload(true)}
-                        >
-                          <FaCamera />
-                        </button>
-                      </div>
-                      <div>
-                        <h4>{user?.nombre} {user?.apellido}</h4>
-                        <p>{user?.email}</p>
-                        <span className="user-badge">{user?.tipoUsuario}</span>
-                      </div>
+                    <div className="popover__who">
+                      <strong>{user?.nombre} {user?.apellido}</strong>
+                      <small>{user?.email}</small>
                     </div>
-
-                    <div className="dropdown-menu">
-                      <button 
-                        className="dropdown-item"
-                        onClick={() => {
-                          setShowProfileModal(true);
-                          setProfileDropdownOpen(false);
-                        }}
-                      >
-                        <FaUser />
-                        Ver Perfil Completo
-                      </button>
-                      <button className="dropdown-item">
-                        <FaCog />
-                        Configuración
-                      </button>
-                      <div className="dropdown-divider"></div>
-                      <button 
-                        className="dropdown-item logout"
-                        onClick={handleLogout}
-                      >
-                        <FaSignOutAlt />
-                        Cerrar Sesión
-                      </button>
-                    </div>
+                    <button role="menuitem" type="button" className="popover__item" onClick={() => { setProfileOpen(true); setMenuOpen(false); }}><FaUser size={14} /> Ver perfil</button>
+                    <button role="menuitem" type="button" className="popover__item" onClick={() => fileRef.current?.click()}><FaCamera size={14} /> Cambiar foto</button>
+                    <Link role="menuitem" className="popover__item" to="/dashboard/settings"><FaCog size={14} /> Ajustes</Link>
+                    <button role="menuitem" type="button" className="popover__item popover__item--danger" onClick={handleLogout}><FaSignOutAlt size={14} /> Cerrar sesión</button>
                   </motion.div>
                 )}
               </AnimatePresence>
+              <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleImage} />
             </div>
           </div>
         </header>
 
-        {/* Content Area */}
-        <main className="content-area">
-          <AnimatePresence mode="wait">
-            {isNavigating ? (
-              <LoadingTransition key="loading" targetPage={navigationTarget} />
-            ) : (
-              <motion.div
-                key={currentPage}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                {children}
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <main className="content">
+          {/* Solo entrada: cambiar de sección no debe esperar a una salida. */}
+          <motion.div key={location.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: dur.ui, ease: ease.out }}>
+            <Outlet />
+          </motion.div>
         </main>
       </div>
 
-      {/* Backdrop para mobile */}
-      {sidebarOpen && (
-        <div 
-          className="sidebar-backdrop"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      <nav className="tabbar" aria-label="Navegación móvil">
+        {nav.filter((i) => i.primary).slice(0, 4).map((item) => (
+          <NavLink key={item.to} to={item.to} end={item.end} className="tabbar__item">
+            {({ isActive }) => (
+              <>
+                {isActive && <motion.span layoutId="tab-active" className="tabbar__active" transition={spring.ui} />}
+                <item.icon size={18} />
+                <span>{item.short || item.label}</span>
+              </>
+            )}
+          </NavLink>
+        ))}
+        <button type="button" className="tabbar__item" onClick={() => setMobileNav(true)} aria-haspopup="dialog">
+          <FaBars size={18} />
+          <span>Más</span>
+        </button>
+      </nav>
 
-      {/* Modal de cambio de imagen */}
-      <AnimatePresence>
-        {showImageUpload && (
-          <motion.div 
-            className="modal-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div 
-              className="modal-content"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-            >
-              <div className="modal-header">
-                <h3>Cambiar Foto de Perfil</h3>
-                <button 
-                  className="modal-close"
-                  onClick={() => setShowImageUpload(false)}
-                >
-                  <FaTimes />
-                </button>
-              </div>
-              
-              <div className="modal-body">
-                <div className="upload-area">
-                  <FaCamera className="upload-icon" />
-                  <p>Selecciona una nueva foto de perfil</p>
-                  <button 
-                    className="upload-btn"
-                    onClick={() => fileInputRef.current.click()}
-                  >
-                    Seleccionar Archivo
-                  </button>
-                  <input 
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    style={{ display: 'none' }}
-                  />
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      {/* Profile Modal */}
-      <ProfileModal 
-        isOpen={showProfileModal}
-        onClose={() => setShowProfileModal(false)}
-      />
+      <Dialog open={mobileNav} onClose={() => setMobileNav(false)} label="Más secciones">
+        <div className="dialog__scroll">
+          <ul className="sheetnav">
+            {nav.map((item) => (
+              <li key={item.to}>
+                <NavLink to={item.to} end={item.end} className="sheetnav__item" onClick={() => setMobileNav(false)}>
+                  <item.icon size={18} /> {item.label}
+                </NavLink>
+              </li>
+            ))}
+            <li><button type="button" className="sheetnav__item popover__item--danger" onClick={handleLogout}><FaSignOutAlt size={18} /> Cerrar sesión</button></li>
+          </ul>
+        </div>
+      </Dialog>
 
-      {/* Notification Panel */}
-      <NotificationPanel
-        open={notificationPanelOpen}
-        onClose={() => setNotificationPanelOpen(false)}
-        onNotificationClick={handleNotificationClick}
-        onCountChange={(c) => setUnreadCount(c)}
-      />
+      <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
+      <NotificationPanel open={notifOpen} onClose={() => setNotifOpen(false)} onNotificationClick={handleNotification} onCountChange={setUnread} />
     </div>
   );
 };

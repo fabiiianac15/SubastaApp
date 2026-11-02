@@ -9,7 +9,11 @@
 const { validationResult } = require('express-validator');
 const Product = require('../models/Product');
 const Bid = require('../models/Bid');
-const Notification = require('../models/Notification');
+const { validateProduct } = require('../middleware/validators');
+const { eliminarImagenes, eliminarSubidas } = require('../services/imageStorage');
+const { adjudicar, cancelar } = require('../services/auctionLifecycle');
+const { escaparRegex, texto, paginacion, respuestaPaginacion } = require('../utils/query');
+const { mismoId } = require('../utils/ids');
 const multer = require('multer');
 const path = require('path');
 
@@ -57,113 +61,67 @@ const upload = multer({
 // - La subasta queda en estado "borrador" o "activo" según las fechas
 // ============================================================================
 const crearProducto = async (req, res) => {
-  try {
-    // Primero ejecutar multer para procesar multipart/form-data
-    upload(req, res, async function(err) {
-      if (err) {
-        return res.status(400).json({
-          success: false,
-          message: err.message
-        });
-      }
+  // multer va primero: hasta que procesa el multipart no hay req.body que validar.
+  upload(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ success: false, message: err.message });
+    }
 
-      // Debug detallado de subida
-      try {
-        console.log('== CrearProducto Debug ==');
-        console.log('req.user:', req.user && { id: req.user._id, tipo: req.user.tipoUsuario });
-        console.log('req.files length:', req.files ? req.files.length : 0);
-        if (req.files && req.files.length) {
-          console.log('Archivos:', req.files.map(f => ({ fieldname: f.fieldname, originalname: f.originalname, filename: f.filename, size: f.size })));
-        }
-        console.log('req.body keys:', Object.keys(req.body));
-      } catch (logErr) {
-        console.log('Error logeando debug crearProducto:', logErr.message);
-      }
-
-      // Verificar errores de validación
+    // Este callback es asíncrono y Express no captura sus errores: sin este try,
+    // un fallo aquí sería una promesa rechazada y server.js apagaría el servidor.
+    try {
+      await Promise.all(validateProduct.map((regla) => regla.run(req)));
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        await eliminarSubidas(req.files);
         return res.status(400).json({
           success: false,
-          message: 'Errores de validación',
+          message: errors.array()[0].msg,
           errors: errors.array()
         });
       }
 
-      const {
-        titulo,
-        descripcion,
-        categoria,
-        precioInicial,
-        porcentajeMinimo,
-        fechaInicio,
-        fechaFin,
-        tipoSubasta,
-        condiciones,
-        tags,
-        usuariosInvitados
-      } = req.body;
-
-      // Coerciones y saneo de datos desde FormData (strings)
-      const precioInicialNum = Number(precioInicial);
-      const porcentajeMinimoNum = Number(porcentajeMinimo);
-      if (Number.isNaN(precioInicialNum) || precioInicialNum <= 0) {
-        return res.status(400).json({ success: false, message: 'El precio inicial es inválido' });
-      }
-      if (Number.isNaN(porcentajeMinimoNum) || porcentajeMinimoNum < 1 || porcentajeMinimoNum > 50) {
-        return res.status(400).json({ success: false, message: 'El porcentaje mínimo es inválido' });
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ success: false, message: 'Sube al menos una imagen' });
       }
 
-      // Procesar imágenes
-      const imagenes = [];
-      if (req.files && req.files.length > 0) {
-        req.files.forEach((file, index) => {
-          imagenes.push({
-            url: `/uploads/products/${file.filename}`,
-            alt: `${titulo} - imagen ${index + 1}`,
-            esPortada: index === 0
-          });
-        });
-      }
-
-      // Calcular incremento mínimo basado en porcentaje
-      const incrementoMinimo = Math.ceil(precioInicialNum * (porcentajeMinimoNum / 100));
+      const { titulo, descripcion, categoria, fechaInicio, fechaFin, tipoSubasta, condiciones, tags, usuariosInvitados } = req.body;
+      const precioInicial = Number(req.body.precioInicial);
+      const porcentajeMinimo = Number(req.body.porcentajeMinimo);
 
       const producto = await Product.create({
         titulo,
         descripcion,
         categoria,
-        precioInicial: precioInicialNum,
-        porcentajeMinimo: porcentajeMinimoNum,
-        incrementoMinimo,
+        precioInicial,
+        porcentajeMinimo,
+        incrementoMinimo: Math.ceil(precioInicial * (porcentajeMinimo / 100)),
         fechaInicio: new Date(fechaInicio),
         fechaFin: new Date(fechaFin),
         tipoSubasta: tipoSubasta || 'publica',
-        imagenes,
+        imagenes: req.files.map((file, index) => ({
+          url: `/uploads/products/${file.filename}`,
+          alt: `${titulo} - imagen ${index + 1}`,
+          esPortada: index === 0
+        })),
         vendedor: req.user._id,
         condiciones,
-        tags: Array.isArray(tags)
-          ? tags
-          : (typeof tags === 'string' && tags.length > 0
-              ? tags.split(',').map(tag => tag.trim()).filter(Boolean)
-              : []),
+        tags: typeof tags === 'string' ? tags.split(',').map((tag) => tag.trim()).filter(Boolean) : [],
         usuariosInvitados: usuariosInvitados || [],
         estado: new Date(fechaInicio) <= new Date() ? 'activo' : 'borrador'
       });
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         message: 'Subasta creada exitosamente',
         data: producto
       });
-    });
-  } catch (error) {
-    console.error('Error creando producto:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error del servidor'
-    });
-  }
+    } catch (error) {
+      console.error('Error creando producto:', error);
+      await eliminarSubidas(req.files);
+      return res.status(500).json({ success: false, message: 'Error del servidor' });
+    }
+  });
 };
 
 // ============================================================================
@@ -178,80 +136,66 @@ const crearProducto = async (req, res) => {
 // ============================================================================
 const obtenerProductos = async (req, res) => {
   try {
-    const {
-      categoria,
-      estado = 'activo',
-      tipoSubasta = 'publica',
-      precioMin,
-      precioMax,
-      busqueda,
-      ordenar = '-createdAt',
-      pagina = 1,
-      limite = 12
-    } = req.query;
+    const categoria = texto(req.query.categoria);
+    const estado = texto(req.query.estado) || 'activo';
+    const busqueda = texto(req.query.busqueda);
+    const ordenar = texto(req.query.ordenar) || '-createdAt';
+    const { precioMin, precioMax } = req.query;
+    const pag = paginacion(req.query);
 
-    // Construir query
-    let query = { tipoSubasta };
+    // Cada condición va en su propio bloque de $and: antes la búsqueda pisaba el
+    // $or de permisos y dejaba ver subastas privadas de otros.
+    const condiciones = [];
 
-    // Solo mostrar subastas públicas o del usuario actual
+    const accesibles = [{ tipoSubasta: 'publica' }];
     if (req.user) {
-      query = {
-        $or: [
-          { tipoSubasta: 'publica' },
-          { vendedor: req.user._id },
-          { usuariosInvitados: req.user._id }
-        ]
-      };
+      accesibles.push({ vendedor: req.user._id }, { usuariosInvitados: req.user._id });
+    }
+    condiciones.push({ $or: accesibles });
+
+    // Borradores y canceladas son asuntos de su vendedor.
+    const ESTADOS_PUBLICOS = ['activo', 'pausado', 'finalizado'];
+    if (estado === 'todas') {
+      condiciones.push({ estado: { $in: ESTADOS_PUBLICOS } });
+    } else if (ESTADOS_PUBLICOS.includes(estado)) {
+      condiciones.push({ estado });
+    } else {
+      condiciones.push({ estado, vendedor: req.user ? req.user._id : null });
     }
 
     if (categoria && categoria !== 'todas') {
-      query.categoria = categoria;
+      condiciones.push({ categoria });
     }
 
-    if (estado && estado !== 'todas') {
-      query.estado = estado;
-    }
-
-    if (precioMin || precioMax) {
-      query.precioActual = {};
-      if (precioMin) query.precioActual.$gte = Number(precioMin);
-      if (precioMax) query.precioActual.$lte = Number(precioMax);
-    }
+    const rango = {};
+    if (Number.isFinite(Number(precioMin)) && precioMin !== undefined && precioMin !== '') rango.$gte = Number(precioMin);
+    if (Number.isFinite(Number(precioMax)) && precioMax !== undefined && precioMax !== '') rango.$lte = Number(precioMax);
+    if (Object.keys(rango).length) condiciones.push({ precioActual: rango });
 
     if (busqueda) {
-      query.$or = [
-        { titulo: { $regex: busqueda, $options: 'i' } },
-        { descripcion: { $regex: busqueda, $options: 'i' } },
-        { tags: { $in: [new RegExp(busqueda, 'i')] } }
-      ];
+      const patron = new RegExp(escaparRegex(busqueda.slice(0, 100)), 'i');
+      condiciones.push({ $or: [{ titulo: patron }, { descripcion: patron }, { tags: patron }] });
     }
 
-    // Agregar filtro de tiempo para subastas activas
     if (estado === 'activo') {
-      query.fechaInicio = { $lte: new Date() };
-      query.fechaFin = { $gt: new Date() };
+      const ahora = new Date();
+      condiciones.push({ fechaInicio: { $lte: ahora }, fechaFin: { $gt: ahora } });
     }
 
-    const skip = (pagina - 1) * limite;
+    const query = { $and: condiciones };
 
     const productos = await Product.find(query)
       .populate('vendedor', 'nombre apellido')
       .sort(ordenar)
-      .limit(Number(limite))
-      .skip(skip);
+      .limit(pag.limite)
+      .skip(pag.skip);
 
     const total = await Product.countDocuments(query);
-    const totalPaginas = Math.ceil(total / limite);
 
     res.json({
       success: true,
       data: productos,
-      pagination: {
-        paginaActual: Number(pagina),
-        totalPaginas,
-        total,
-        limite: Number(limite)
-      }
+      pagination: respuestaPaginacion(pag, total)
     });
   } catch (error) {
     console.error('Error obteniendo productos:', error);
@@ -267,7 +211,7 @@ const obtenerProductos = async (req, res) => {
 const obtenerProductoPorId = async (req, res) => {
   try {
     const producto = await Product.findById(req.params.id)
-      .populate('vendedor', 'nombre apellido email fechaRegistro')
+      .populate('vendedor', 'nombre apellido fechaRegistro')
       .populate('ofertaGanadora')
       .populate('ganador', 'nombre apellido');
 
@@ -279,7 +223,7 @@ const obtenerProductoPorId = async (req, res) => {
     }
 
     // Verificar permisos para subastas privadas
-    if (req.user && !producto.puedeVerSubasta(req.user._id.toString())) {
+    if (!producto.puedeVerSubasta(req.user?._id)) {
       return res.status(403).json({
         success: false,
         message: 'No tienes permisos para ver esta subasta'
@@ -293,7 +237,6 @@ const obtenerProductoPorId = async (req, res) => {
 
     // Obtener las últimas ofertas
     const ofertas = await Bid.find({ producto: req.params.id })
-      .populate('postor', 'nombre apellido')
       .sort({ createdAt: -1 })
       .limit(10);
 
@@ -316,12 +259,6 @@ const obtenerProductoPorId = async (req, res) => {
 // Actualizar subasta
 
 const actualizarProducto = async (req, res) => {
-  console.log('=== ACTUALIZAR PRODUCTO LLAMADO ===');
-  console.log('ID:', req.params.id);
-  console.log('Method:', req.method);
-  console.log('Body:', req.body);
-  console.log('Files:', req.files);
-  
   try {
     // Primero ejecutar multer para procesar multipart/form-data si hay imágenes nuevas
     upload(req, res, async function(err) {
@@ -344,8 +281,7 @@ const actualizarProducto = async (req, res) => {
         }
 
         // Verificar que sea el vendedor (soporta vendedor poblado u ObjectId)
-        const vendedorId = producto.vendedor && producto.vendedor._id ? producto.vendedor._id : producto.vendedor;
-        if (String(vendedorId) !== String(req.user._id)) {
+        if (!mismoId(producto.vendedor, req.user._id)) {
           return res.status(403).json({
             success: false,
             message: 'No tienes permisos para editar esta subasta'
@@ -375,9 +311,16 @@ const actualizarProducto = async (req, res) => {
           producto.tags = req.body.tags.split(',').map(tag => tag.trim()).filter(Boolean);
         }
 
-        // Si se actualizó el precio inicial o porcentaje, recalcular incremento
-        if (req.body.precioInicial || req.body.porcentajeMinimo) {
+        // Sin ofertas, el precio de salida manda: antes precioActual se quedaba con
+        // el valor viejo y la gente ofertaba sobre un precio que ya no existía.
+        if (producto.numeroOfertas === 0 && (req.body.precioInicial || req.body.porcentajeMinimo)) {
           producto.incrementoMinimo = Math.ceil(Number(producto.precioInicial) * (Number(producto.porcentajeMinimo) / 100));
+          producto.precioActual = Number(producto.precioInicial);
+        }
+
+        // Si cambian las fechas de una subasta sin ofertas, su estado debe seguirlas.
+        if (producto.numeroOfertas === 0 && req.body.fechaInicio && ['borrador', 'activo'].includes(producto.estado)) {
+          producto.estado = producto.fechaInicio <= new Date() ? 'activo' : 'borrador';
         }
 
         // Procesar nuevas imágenes si se subieron
@@ -442,8 +385,7 @@ const eliminarProducto = async (req, res) => {
     }
 
     // Verificar que sea el vendedor (soporta vendedor poblado u ObjectId)
-    const vendedorId = producto.vendedor && producto.vendedor._id ? producto.vendedor._id : producto.vendedor;
-    if (String(vendedorId) !== String(req.user._id)) {
+    if (!mismoId(producto.vendedor, req.user._id)) {
       return res.status(403).json({
         success: false,
         message: 'No tienes permisos para eliminar esta subasta'
@@ -465,8 +407,9 @@ const eliminarProducto = async (req, res) => {
     // Eliminar todas las pujas asociadas a este producto
     const pujasEliminadas = await Bid.deleteMany({ producto: req.params.id });
 
-    // Eliminar el producto
+    // Eliminar el producto y sus archivos
     await Product.findByIdAndDelete(req.params.id);
+    await eliminarImagenes(producto.imagenes);
 
     res.json({
       success: true,
@@ -488,12 +431,9 @@ const eliminarProducto = async (req, res) => {
 
 const obtenerMisSubastas = async (req, res) => {
   try {
-    const {
-      estado,
-      ordenar = '-createdAt',
-      pagina = 1,
-      limite = 12
-    } = req.query;
+    const estado = texto(req.query.estado);
+    const ordenar = texto(req.query.ordenar) || '-createdAt';
+    const pag = paginacion(req.query);
 
     let query = { vendedor: req.user._id };
 
@@ -501,15 +441,12 @@ const obtenerMisSubastas = async (req, res) => {
       query.estado = estado;
     }
 
-    const skip = (pagina - 1) * limite;
-
     const productos = await Product.find(query)
       .sort(ordenar)
-      .limit(Number(limite))
-      .skip(skip);
+      .limit(pag.limite)
+      .skip(pag.skip);
 
     const total = await Product.countDocuments(query);
-    const totalPaginas = Math.ceil(total / limite);
 
     // Obtener estadísticas
     const estadisticas = await Product.aggregate([
@@ -527,12 +464,7 @@ const obtenerMisSubastas = async (req, res) => {
       success: true,
       data: productos,
       estadisticas,
-      pagination: {
-        paginaActual: Number(pagina),
-        totalPaginas,
-        total,
-        limite: Number(limite)
-      }
+      pagination: respuestaPaginacion(pag, total)
     });
   } catch (error) {
     console.error('Error obteniendo mis subastas:', error);
@@ -558,8 +490,7 @@ const cambiarEstadoSubasta = async (req, res) => {
     }
 
     // Verificar que sea el vendedor (soporta vendedor poblado u ObjectId)
-    const vendedorId = producto.vendedor && producto.vendedor._id ? producto.vendedor._id : producto.vendedor;
-    if (String(vendedorId) !== String(req.user._id)) {
+    if (!mismoId(producto.vendedor, req.user._id)) {
       return res.status(403).json({
         success: false,
         message: 'No tienes permisos para cambiar el estado de esta subasta'
@@ -582,39 +513,31 @@ const cambiarEstadoSubasta = async (req, res) => {
       });
     }
 
-    // Si se está finalizando la subasta, marcar al ganador
-    if (estado === 'finalizado' && producto.estado === 'activo') {
-      // Buscar la oferta más alta
-      const ofertaGanadora = await Bid.findOne({ 
-        producto: producto._id, 
-        estado: 'activa' 
-      })
-      .sort({ monto: -1 })
-      .populate('postor', 'nombre apellido');
-
-      if (ofertaGanadora) {
-        // Marcar como ganadora
-        ofertaGanadora.estado = 'ganadora';
-        await ofertaGanadora.save();
-
-        // Crear notificación para el ganador
-        await Notification.notificarPujaGanadora(
-          ofertaGanadora.postor._id,
-          producto,
-          ofertaGanadora.monto
-        );
-
-        console.log(`✅ Oferta ganadora marcada para ${ofertaGanadora.postor.nombre} con monto ${ofertaGanadora.monto}`);
-      }
+    // Adjudicar y cancelar notifican a los involucrados; el resto es solo cambio de estado.
+    let actualizado;
+    if (estado === 'finalizado') {
+      actualizado = await adjudicar(producto._id, producto.estado);
+    } else if (estado === 'cancelado') {
+      actualizado = await cancelar(producto._id, producto.estado);
+    } else {
+      actualizado = await Product.findOneAndUpdate(
+        { _id: producto._id, estado: producto.estado },
+        { estado },
+        { new: true }
+      );
     }
 
-    producto.estado = estado;
-    await producto.save();
+    if (!actualizado) {
+      return res.status(409).json({
+        success: false,
+        message: 'El estado de la subasta acaba de cambiar. Recarga e inténtalo de nuevo.'
+      });
+    }
 
     res.json({
       success: true,
       message: `Subasta ${estado === 'activo' ? 'activada' : estado} exitosamente`,
-      data: producto
+      data: actualizado
     });
   } catch (error) {
     console.error('Error cambiando estado:', error);

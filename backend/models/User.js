@@ -72,8 +72,10 @@ const userSchema = new mongoose.Schema({
 
 // Encriptar password antes de guardar
 userSchema.pre('save', async function(next) {
+  // Sin este return, cualquier guardado volvía a hashear el hash existente
+  // (o fallaba si el documento se cargó sin la contraseña).
   if (!this.isModified('password')) {
-    next();
+    return next();
   }
 
   const salt = await bcrypt.genSalt(10);

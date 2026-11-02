@@ -10,34 +10,9 @@
 const { validationResult } = require('express-validator');
 const Bid = require('../models/Bid');
 const Product = require('../models/Product');
-const UserActivity = require('../models/UserActivity');
-
-// ============================================================================
-// FUNCIÓN AUXILIAR: Registrar intentos de subasta en analytics
-// ============================================================================
-const registrarIntentoSubastaAnalytics = async (usuarioId, productoId, categoria, monto, exitoso, motivoError) => {
-  try {
-    await UserActivity.findOneAndUpdate(
-      { usuario: usuarioId },
-      {
-        $push: {
-          intentosSubasta: {
-            producto: productoId,
-            categoria,
-            monto,
-            exitoso,
-            motivoError,
-            fecha: new Date()
-          }
-        }
-      },
-      { upsert: true }
-    );
-  } catch (error) {
-    console.error('Error registrando intento de subasta:', error);
-    // No lanzar error, solo log
-  }
-};
+const Notification = require('../models/Notification');
+const { idDe, mismoId } = require('../utils/ids');
+const { paginacion, respuestaPaginacion, texto } = require('../utils/query');
 
 // ============================================================================
 // COMPRADOR - PASO 2: Realizar oferta en una subasta
@@ -60,198 +35,82 @@ const crearOferta = async (req, res) => {
       });
     }
 
-  const { monto, mensaje } = req.body;
+    const { mensaje } = req.body;
+    const monto = Number(req.body.monto);
     const productoId = req.params.productId;
 
-    // Obtener el producto
     const producto = await Product.findById(productoId);
-    
+
     if (!producto) {
-      return res.status(404).json({
-        success: false,
-        message: 'Subasta no encontrada'
-      });
+      return res.status(404).json({ success: false, message: 'Subasta no encontrada' });
     }
 
-    // Verificar que la subasta esté activa
+    const ahora = new Date();
     if (producto.estado !== 'activo') {
-      // Registrar intento fallido
-      await registrarIntentoSubastaAnalytics(
-        req.user._id,
-        productoId,
-        producto.categoria,
-        monto,
-        false,
-        'Subasta no activa'
-      );
-      
-      return res.status(400).json({
-        success: false,
-        message: 'La subasta no está activa'
-      });
+      return res.status(400).json({ success: false, message: 'La subasta no está activa' });
+    }
+    if (ahora > producto.fechaFin) {
+      return res.status(400).json({ success: false, message: 'La subasta ya ha terminado' });
+    }
+    if (ahora < producto.fechaInicio) {
+      return res.status(400).json({ success: false, message: 'La subasta aún no ha comenzado' });
+    }
+    if (mismoId(producto.vendedor, req.user._id)) {
+      return res.status(400).json({ success: false, message: 'No puedes ofertar en tu propia subasta' });
+    }
+    if (!producto.puedeVerSubasta(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'No tienes permisos para ofertar en esta subasta' });
     }
 
-    // Verificar que no haya terminado
-    if (new Date() > producto.fechaFin) {
-      // Registrar intento fallido
-      await registrarIntentoSubastaAnalytics(
-        req.user._id,
-        productoId,
-        producto.categoria,
-        monto,
-        false,
-        'Subasta finalizada'
-      );
-      
-      return res.status(400).json({
-        success: false,
-        message: 'La subasta ya ha terminado'
-      });
-    }
-
-    // Verificar que no haya empezado aún
-    if (new Date() < producto.fechaInicio) {
-      // Registrar intento fallido
-      await registrarIntentoSubastaAnalytics(
-        req.user._id,
-        productoId,
-        producto.categoria,
-        monto,
-        false,
-        'Subasta aún no ha comenzado'
-      );
-      
-      return res.status(400).json({
-        success: false,
-        message: 'La subasta aún no ha comenzado'
-      });
-    }
-
-    // Verificar que no sea el vendedor
-    {
-      const vendedorId = producto.vendedor && producto.vendedor._id ? producto.vendedor._id : producto.vendedor;
-      if (String(vendedorId) === String(req.user._id)) {
-        // Registrar intento fallido
-        await registrarIntentoSubastaAnalytics(
-          req.user._id,
-          productoId,
-          producto.categoria,
-          monto,
-          false,
-          'Usuario es el vendedor'
-        );
-        
-        return res.status(400).json({
-          success: false,
-          message: 'No puedes ofertar en tu propia subasta'
-        });
-      }
-    }
-
-    // Verificar permisos para subastas privadas
-    if (!producto.puedeVerSubasta(req.user._id.toString())) {
-      // Registrar intento fallido
-      await registrarIntentoSubastaAnalytics(
-        req.user._id,
-        productoId,
-        producto.categoria,
-        monto,
-        false,
-        'Sin permisos (subasta privada)'
-      );
-      
-      return res.status(403).json({
-        success: false,
-        message: 'No tienes permisos para ofertar en esta subasta'
-      });
-    }
-
-    // Verificar que el monto sea mayor al precio actual más el incremento mínimo
-    const montoMinimo = producto.precioActual + producto.incrementoMinimo;
+    const precioVisto = producto.precioActual;
+    const montoMinimo = precioVisto + producto.incrementoMinimo;
     if (monto < montoMinimo) {
-      // Registrar intento fallido
-      await registrarIntentoSubastaAnalytics(
-        req.user._id,
-        productoId,
-        producto.categoria,
-        monto,
-        false,
-        `Monto insuficiente (mínimo: $${montoMinimo})`
-      );
-      
       return res.status(400).json({
         success: false,
-        message: `El monto mínimo es $${montoMinimo.toLocaleString()}`
+        message: `El monto mínimo es $${montoMinimo.toLocaleString('es-CO')}`
       });
     }
 
-    // Verificar que el usuario no tenga una oferta activa mayor
-    const ofertaActual = await Bid.findOne({
-      producto: productoId,
-      postor: req.user._id,
-      estado: 'activa'
-    }).sort({ monto: -1 });
-
-    if (ofertaActual && ofertaActual.monto >= monto) {
-      // Registrar intento fallido
-      await registrarIntentoSubastaAnalytics(
-        req.user._id,
-        productoId,
-        producto.categoria,
-        monto,
-        false,
-        'Ya tiene oferta igual o mayor'
-      );
-      
-      return res.status(400).json({
+    // Reserva atómica del precio: si otra oferta entró mientras tanto, el filtro
+    // por precioActual no coincide y esta se rechaza en vez de pisarla.
+    const reservado = await Product.findOneAndUpdate(
+      { _id: productoId, estado: 'activo', precioActual: precioVisto },
+      { $set: { precioActual: monto }, $inc: { numeroOfertas: 1 } },
+      { new: true }
+    );
+    if (!reservado) {
+      return res.status(409).json({
         success: false,
-        message: 'Ya tienes una oferta igual o mayor'
+        message: 'Alguien ofertó antes que tú. Revisa el precio y vuelve a intentarlo.'
       });
     }
 
-    // Marcar ofertas anteriores como superadas
+    const lider = await Bid.findOne({ producto: productoId, estado: 'activa' }).sort({ monto: -1 });
     await Bid.marcarOfertasComoSuperadas(productoId, monto);
 
-    // Mensaje por defecto si no viene en la petición
-    const nombre = (req.user?.nombre || '').trim();
-    const apellido = (req.user?.apellido || '').trim();
-    const usuarioTexto = `${nombre} ${apellido}`.trim() || 'Usuario';
-    const montoTexto = `$${Number(monto).toLocaleString('es-CO')}`;
+    const usuarioTexto = `${req.user.nombre || ''} ${req.user.apellido || ''}`.trim() || 'Usuario';
     const mensajeFinal = mensaje && String(mensaje).trim().length > 0
       ? mensaje
-      : `${usuarioTexto} acaba de ofertar ${montoTexto}, ¡va ganando!!!`;
+      : `${usuarioTexto} ofertó $${monto.toLocaleString('es-CO')}`;
 
-    // Crear la nueva oferta
     const oferta = await Bid.create({
       producto: productoId,
       postor: req.user._id,
       monto,
-      montoAnterior: producto.precioActual,
+      montoAnterior: precioVisto,
       mensaje: mensajeFinal,
       ip: req.ip,
       userAgent: req.get('User-Agent')
     });
 
-    // Actualizar el producto
-    await Product.findByIdAndUpdate(productoId, {
-      precioActual: monto,
-      $inc: { numeroOfertas: 1 }
-    });
+    // Los avisos no deben tumbar una oferta que ya quedó registrada.
+    const avisos = [Notification.notificarNuevaPuja(idDe(producto.vendedor), producto, monto, usuarioTexto)];
+    if (lider && !mismoId(lider.postor, req.user._id)) {
+      avisos.push(Notification.notificarPujaSuperada(idDe(lider.postor), producto, lider.monto, monto));
+    }
+    await Promise.all(avisos).catch((e) => console.error('No se pudo notificar:', e.message));
 
-    // Poblar la oferta para respuesta
-    const ofertaCompleta = await Bid.findById(oferta._id)
-      .populate('postor', 'nombre apellido')
-      .populate('producto', 'titulo precioActual');
-
-    // Registrar intento exitoso en analytics
-    await registrarIntentoSubastaAnalytics(
-      req.user._id,
-      productoId,
-      producto.categoria,
-      monto,
-      true,
-      null
-    );
+    const ofertaCompleta = await Bid.findById(oferta._id);
 
     res.status(201).json({
       success: true,
@@ -272,11 +131,8 @@ const crearOferta = async (req, res) => {
 
 const obtenerOfertasProducto = async (req, res) => {
   try {
-    const {
-      pagina = 1,
-      limite = 20,
-      estado = 'activa'
-    } = req.query;
+    const estado = texto(req.query.estado) || 'activa';
+    const pag = paginacion(req.query, 20);
 
     const productoId = req.params.productId;
 
@@ -290,7 +146,7 @@ const obtenerOfertasProducto = async (req, res) => {
     }
 
     // Verificar permisos para subastas privadas
-    if (req.user && !producto.puedeVerSubasta(req.user._id.toString())) {
+    if (!producto.puedeVerSubasta(req.user?._id)) {
       return res.status(403).json({
         success: false,
         message: 'No tienes permisos para ver las ofertas de esta subasta'
@@ -302,16 +158,12 @@ const obtenerOfertasProducto = async (req, res) => {
       query.estado = estado;
     }
 
-    const skip = (pagina - 1) * limite;
-
     const ofertas = await Bid.find(query)
-      .populate('postor', 'nombre apellido')
       .sort({ monto: -1, createdAt: -1 })
-      .limit(Number(limite))
-      .skip(skip);
+      .limit(pag.limite)
+      .skip(pag.skip);
 
     const total = await Bid.countDocuments(query);
-    const totalPaginas = Math.ceil(total / limite);
 
     // Obtener estadísticas de ofertas
     const estadisticas = await Bid.aggregate([
@@ -341,12 +193,7 @@ const obtenerOfertasProducto = async (req, res) => {
       success: true,
       data: ofertas,
       estadisticas: estadisticas[0] || null,
-      pagination: {
-        paginaActual: Number(pagina),
-        totalPaginas,
-        total,
-        limite: Number(limite)
-      }
+      pagination: respuestaPaginacion(pag, total)
     });
 
   } catch (error) {
@@ -362,28 +209,21 @@ const obtenerOfertasProducto = async (req, res) => {
 
 const obtenerMisOfertas = async (req, res) => {
   try {
-    const {
-      estado,
-      pagina = 1,
-      limite = 20,
-      ordenar = '-createdAt'
-    } = req.query;
+    const estado = texto(req.query.estado);
+    const ordenar = texto(req.query.ordenar) || '-createdAt';
+    const pag = paginacion(req.query, 20);
 
     let query = { postor: req.user._id };
     if (estado && estado !== 'todas') {
       query.estado = estado;
     }
 
-    const skip = (pagina - 1) * limite;
-
     const ofertas = await Bid.find(query)
-      .populate('producto', 'titulo imagenes estado fechaFin precioActual')
       .sort(ordenar)
-      .limit(Number(limite))
-      .skip(skip);
+      .limit(pag.limite)
+      .skip(pag.skip);
 
     const total = await Bid.countDocuments(query);
-    const totalPaginas = Math.ceil(total / limite);
 
     // Estadísticas del usuario
     const estadisticas = await Bid.aggregate([
@@ -401,12 +241,7 @@ const obtenerMisOfertas = async (req, res) => {
       success: true,
       data: ofertas,
       estadisticas,
-      pagination: {
-        paginaActual: Number(pagina),
-        totalPaginas,
-        total,
-        limite: Number(limite)
-      }
+      pagination: respuestaPaginacion(pag, total)
     });
 
   } catch (error) {
@@ -432,26 +267,27 @@ const retirarOferta = async (req, res) => {
     }
 
     // Verificar que sea el postor
-    if (oferta.postor.toString() !== req.user._id.toString()) {
+    if (!mismoId(oferta.postor, req.user._id)) {
       return res.status(403).json({
         success: false,
         message: 'No tienes permisos para retirar esta oferta'
       });
     }
 
-    // Verificar que la oferta esté activa
-    if (oferta.estado !== 'activa') {
+    // La oferta activa es siempre la más alta y esa no se retira: lo retirable son
+    // las superadas, que además no mueven el precio.
+    if (!['activa', 'superada'].includes(oferta.estado)) {
       return res.status(400).json({
         success: false,
-        message: 'Solo puedes retirar ofertas activas'
+        message: 'Esta oferta ya no se puede retirar'
       });
     }
 
     // Verificar el producto
-    const producto = await Product.findById(oferta.producto);
-    
+    const producto = await Product.findById(idDe(oferta.producto));
+
     // No permitir retirar si es la oferta ganadora actual
-    if (producto.precioActual === oferta.monto) {
+    if (oferta.estado === 'activa' || producto.precioActual === oferta.monto) {
       return res.status(400).json({
         success: false,
         message: 'No puedes retirar la oferta más alta'
@@ -469,6 +305,7 @@ const retirarOferta = async (req, res) => {
 
     oferta.estado = 'retirada';
     await oferta.save();
+    await Product.findByIdAndUpdate(producto._id, { $inc: { numeroOfertas: -1 } });
 
     res.json({
       success: true,
@@ -573,7 +410,7 @@ const pagarOfertaGanadora = async (req, res) => {
     }
 
     // Verificar que sea el postor
-    if (oferta.postor.toString() !== req.user._id.toString()) {
+    if (!mismoId(oferta.postor, req.user._id)) {
       return res.status(403).json({
         success: false,
         message: 'No tienes permisos para pagar esta oferta'
@@ -603,9 +440,13 @@ const pagarOfertaGanadora = async (req, res) => {
     oferta.fechaPago = new Date();
     await oferta.save();
 
-    const ofertaCompleta = await Bid.findById(oferta._id)
-      .populate('postor', 'nombre apellido')
-      .populate('producto', 'titulo precioActual');
+    const producto = await Product.findById(idDe(oferta.producto));
+    if (producto) {
+      await Notification.notificarPagoRecibido(idDe(producto.vendedor), producto, oferta.monto)
+        .catch((e) => console.error('No se pudo notificar:', e.message));
+    }
+
+    const ofertaCompleta = await Bid.findById(oferta._id);
 
     res.json({
       success: true,

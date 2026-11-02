@@ -82,7 +82,7 @@ notificationSchema.statics.notificarPujaSuperada = async function(usuarioId, sub
   return this.crearNotificacion({
     usuario: usuarioId,
     tipo: 'puja_superada',
-    titulo: '¡Alguien superó tu puja!',
+    titulo: 'Superaron tu oferta',
     mensaje: `Tu oferta de ${montoAnterior.toLocaleString()} COP fue superada en "${subasta.titulo}". La nueva oferta es de ${montoNuevo.toLocaleString()} COP.`,
     accion: {
       tipo: 'ver_subasta',
@@ -97,15 +97,16 @@ notificationSchema.statics.notificarPujaSuperada = async function(usuarioId, sub
 };
 
 // Método estático para notificar puja ganadora
-notificationSchema.statics.notificarPujaGanadora = async function(usuarioId, subasta, monto) {
+notificationSchema.statics.notificarPujaGanadora = async function(usuarioId, subasta, monto, ofertaId) {
   return this.crearNotificacion({
     usuario: usuarioId,
     tipo: 'puja_ganadora',
-    titulo: '🏆 ¡Felicidades! Ganaste la subasta',
+    titulo: 'Ganaste la subasta',
     mensaje: `Has ganado la subasta "${subasta.titulo}" con una oferta de ${monto.toLocaleString()} COP. Por favor realiza el pago para completar la compra.`,
     accion: {
       tipo: 'pagar',
-      productoId: subasta._id
+      productoId: subasta._id,
+      ofertaId
     },
     metadata: {
       monto: monto,
@@ -120,7 +121,7 @@ notificationSchema.statics.notificarNuevaPuja = async function(vendedorId, subas
   return this.crearNotificacion({
     usuario: vendedorId,
     tipo: 'nueva_puja',
-    titulo: '💰 Nueva oferta en tu subasta',
+    titulo: 'Nueva oferta en tu subasta',
     mensaje: `${nombrePostor || 'Alguien'} ha ofertado ${monto.toLocaleString()} COP en "${subasta.titulo}".`,
     accion: {
       tipo: 'ver_subasta',
@@ -139,7 +140,7 @@ notificationSchema.statics.recordatorioPago = async function(usuarioId, subasta,
   return this.crearNotificacion({
     usuario: usuarioId,
     tipo: 'recordatorio_pago',
-    titulo: '💳 Recordatorio de pago pendiente',
+    titulo: 'Pago pendiente',
     mensaje: `Tienes un pago pendiente de ${monto.toLocaleString()} COP por la subasta "${subasta.titulo}". Por favor completa el pago pronto.`,
     accion: {
       tipo: 'pagar',
@@ -159,7 +160,7 @@ notificationSchema.statics.notificarPagoRecibido = async function(vendedorId, su
   return this.crearNotificacion({
     usuario: vendedorId,
     tipo: 'pago_recibido',
-    titulo: '✅ Pago recibido',
+    titulo: 'Pago recibido',
     mensaje: `Has recibido un pago de ${monto.toLocaleString()} COP por la subasta "${subasta.titulo}".`,
     accion: {
       tipo: 'ver_subasta',
@@ -167,6 +168,45 @@ notificationSchema.statics.notificarPagoRecibido = async function(vendedorId, su
     },
     metadata: {
       monto: monto,
+      nombreSubasta: subasta.titulo,
+      imagenSubasta: subasta.imagenes?.[0]?.url
+    }
+  });
+};
+
+// Cierre de una subasta, para quien la publicó.
+notificationSchema.statics.notificarSubastaFinalizada = async function(vendedorId, subasta, monto) {
+  return this.crearNotificacion({
+    usuario: vendedorId,
+    tipo: 'subasta_finalizada',
+    titulo: monto ? 'Tu subasta se adjudicó' : 'Tu subasta cerró sin ofertas',
+    mensaje: monto
+      ? `"${subasta.titulo}" cerró en ${monto.toLocaleString()} COP.`
+      : `"${subasta.titulo}" terminó y nadie ofertó.`,
+    accion: {
+      tipo: 'ver_subasta',
+      productoId: subasta._id
+    },
+    metadata: {
+      monto,
+      nombreSubasta: subasta.titulo,
+      imagenSubasta: subasta.imagenes?.[0]?.url
+    }
+  });
+};
+
+// Cancelación, para quienes tenían una oferta en la subasta.
+notificationSchema.statics.notificarSubastaCancelada = async function(usuarioId, subasta) {
+  return this.crearNotificacion({
+    usuario: usuarioId,
+    tipo: 'subasta_cancelada',
+    titulo: 'Cancelaron una subasta',
+    mensaje: `El vendedor canceló "${subasta.titulo}". Tu oferta ya no aplica.`,
+    accion: {
+      tipo: 'ver_subasta',
+      productoId: subasta._id
+    },
+    metadata: {
       nombreSubasta: subasta.titulo,
       imagenSubasta: subasta.imagenes?.[0]?.url
     }

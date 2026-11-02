@@ -1,6 +1,12 @@
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const User = require('../models/User');
+const Product = require('../models/Product');
+const Bid = require('../models/Bid');
+const Notification = require('../models/Notification');
+const UserActivity = require('../models/UserActivity');
+const { eliminarImagenes } = require('../services/imageStorage');
+const { idDe } = require('../utils/ids');
 
 // Generar JWT Token
 const generateToken = (id) => {
@@ -8,6 +14,19 @@ const generateToken = (id) => {
     expiresIn: process.env.JWT_EXPIRE,
   });
 };
+
+// Lo que necesita el frontend para pintar el perfil sin otra petición.
+const datosSesion = (user) => ({
+  _id: user._id,
+  nombre: user.nombre,
+  apellido: user.apellido,
+  email: user.email,
+  telefono: user.telefono,
+  tipoUsuario: user.tipoUsuario,
+  direccion: user.direccion,
+  fechaRegistro: user.fechaRegistro,
+  token: generateToken(user._id)
+});
 
 // REGISTRO: Crea una nueva cuenta validando que el email no exista
 
@@ -58,14 +77,7 @@ const register = async (req, res) => {
       res.status(201).json({
         success: true,
         message: 'Usuario registrado exitosamente',
-        data: {
-          _id: user._id,
-          nombre: user.nombre,
-          apellido: user.apellido,
-          email: user.email,
-          tipoUsuario: user.tipoUsuario,
-          token: generateToken(user._id)
-        }
+        data: datosSesion(user)
       });
     } else {
       res.status(400).json({
@@ -110,33 +122,19 @@ const login = async (req, res) => {
     // Verificar usuario
     const user = await User.findOne({ email }).select('+password');
 
-    if (!user) {
+    // Mismo mensaje en ambos casos: no revelar qué correos están registrados.
+    if (!user || !user.activo || !(await user.matchPassword(password))) {
       return res.status(401).json({
         success: false,
         message: 'Credenciales inválidas',
-        errors: [{ msg: 'El email no está registrado' }]
-      });
-    }
-
-    if (!(await user.matchPassword(password))) {
-      return res.status(401).json({
-        success: false,
-        message: 'Credenciales inválidas',
-        errors: [{ msg: 'La contraseña es incorrecta' }]
+        errors: [{ msg: 'Correo o contraseña incorrectos' }]
       });
     }
 
     res.json({
       success: true,
       message: 'Inicio de sesión exitoso',
-      data: {
-        _id: user._id,
-        nombre: user.nombre,
-        apellido: user.apellido,
-        email: user.email,
-        tipoUsuario: user.tipoUsuario,
-        token: generateToken(user._id)
-      }
+      data: datosSesion(user)
     });
   } catch (error) {
     console.error(error);
@@ -181,7 +179,8 @@ const updateProfile = async (req, res) => {
     }
 
     // Campos que se pueden actualizar
-    const { nombre, apellido, telefono, direccion, email } = req.body;
+    const { nombre, apellido, telefono, direccion } = req.body;
+    const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : undefined;
 
     // Verificar si el email ya está en uso por otro usuario
     if (email && email !== user.email) {
@@ -220,10 +219,17 @@ const updateProfile = async (req, res) => {
         email: updatedUser.email,
         telefono: updatedUser.telefono,
         tipoUsuario: updatedUser.tipoUsuario,
-        direccion: updatedUser.direccion
+        direccion: updatedUser.direccion,
+        fechaRegistro: updatedUser.fechaRegistro
       }
     });
   } catch (error) {
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: Object.values(error.errors).map((e) => e.message).join('. ')
+      });
+    }
     console.error(error);
     res.status(500).json({
       success: false,
@@ -236,21 +242,16 @@ const updateProfile = async (req, res) => {
 
 const changePassword = async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: errors.array()[0].msg,
+        errors: errors.array()
+      });
+    }
+
     const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Por favor proporcione la contraseña actual y la nueva contraseña'
-      });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'La nueva contraseña debe tener al menos 6 caracteres'
-      });
-    }
 
     const user = await User.findById(req.user._id).select('+password');
 
@@ -318,18 +319,25 @@ const deleteAccount = async (req, res) => {
       });
     }
 
-    // Importar modelos relacionados
-    const Product = require('../models/Product');
-    const Bid = require('../models/Bid');
+    const userId = req.user._id;
 
-    // Eliminar productos del usuario (si es vendedor)
-    await Product.deleteMany({ vendedor: req.user._id });
+    // Subastas del usuario: se van con sus imágenes y las ofertas que recibieron.
+    const propias = await Product.find({ vendedor: userId }).select('imagenes');
+    const idsPropias = propias.map((p) => p._id);
+    await eliminarImagenes(propias.flatMap((p) => p.imagenes));
+    await Bid.deleteMany({ producto: { $in: idsPropias } });
+    await Product.deleteMany({ _id: { $in: idsPropias } });
 
-    // Eliminar pujas del usuario (si es comprador)
-    await Bid.deleteMany({ comprador: req.user._id });
+    // Ofertas del usuario en subastas ajenas: el precio vuelve a la oferta viva
+    // más alta para que nadie quede compitiendo contra alguien que ya no existe.
+    const ofertas = await Bid.find({ postor: userId }).select('producto');
+    const afectadas = [...new Set(ofertas.map((o) => idDe(o.producto)))];
+    await Bid.deleteMany({ postor: userId });
+    await Promise.all(afectadas.map((id) => Bid.recalcularProducto(id)));
 
-    // Eliminar usuario completamente de la base de datos
-    await User.findByIdAndDelete(req.user._id);
+    await Notification.deleteMany({ usuario: userId });
+    await UserActivity.deleteMany({ usuario: userId });
+    await User.findByIdAndDelete(userId);
 
     res.json({
       success: true,
