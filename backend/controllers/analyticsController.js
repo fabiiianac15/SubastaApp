@@ -11,6 +11,7 @@
 
 const UserActivity = require('../models/UserActivity');
 const geoip = require('geoip-lite');
+const mongoose = require('mongoose');
 
 // ============================================================================
 // FUNCIÓN 1: Iniciar Sesión de Tracking
@@ -50,10 +51,7 @@ const iniciarSesion = async (req, res) => {
         proveedor: 'geoip-lite'
       };
     } else {
-      return res.status(400).json({
-        success: false,
-        message: 'No se pudo determinar la ubicación del usuario'
-      });
+      ubicacion = { proveedor: 'desconocido' };
     }
     
     const activity = await UserActivity.create({
@@ -65,8 +63,6 @@ const iniciarSesion = async (req, res) => {
       horaIngreso: UserActivity.crearHoraIngreso()
     });
 
-    console.log('📍 Sesión iniciada:', activity._id);
-
     res.status(201).json({
       success: true,
       data: {
@@ -77,8 +73,7 @@ const iniciarSesion = async (req, res) => {
     console.error('❌ Error iniciando sesión:', error);
     res.status(500).json({
       success: false,
-      message: 'Error del servidor',
-      error: error.message
+      message: 'Error del servidor'
     });
   }
 };
@@ -96,7 +91,7 @@ const iniciarSesion = async (req, res) => {
 const actualizarTiempo = async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const activity = await UserActivity.findById(sessionId);
+    const activity = await UserActivity.findOne({ _id: sessionId, usuario: req.user._id });
 
     if (!activity) {
       return res.status(404).json({
@@ -107,8 +102,6 @@ const actualizarTiempo = async (req, res) => {
 
     activity.actualizarTiempoEnPagina();
     await activity.save();
-
-    console.log('⏱️  Tiempo actualizado:', activity.tiempoEnPagina.duracionSegundos, 'seg');
 
     res.json({
       success: true,
@@ -146,7 +139,7 @@ const registrarClickCategoria = async (req, res) => {
       });
     }
 
-    const activity = await UserActivity.findById(sessionId);
+    const activity = await UserActivity.findOne({ _id: sessionId, usuario: req.user._id });
 
     if (!activity) {
       return res.status(404).json({
@@ -157,8 +150,6 @@ const registrarClickCategoria = async (req, res) => {
 
     activity.agregarClickCategoria(categoria);
     await activity.save();
-
-    console.log('📂 Click en categoría:', categoria);
 
     res.json({
       success: true,
@@ -191,7 +182,7 @@ const registrarIntentoSubasta = async (req, res) => {
   try {
     const { sessionId, productoId, tituloProducto, categoria, precioInicial, exitoso, razonFallo } = req.body;
 
-    const activity = await UserActivity.findById(sessionId);
+    const activity = await UserActivity.findOne({ _id: sessionId, usuario: req.user._id });
 
     if (!activity) {
       return res.status(404).json({
@@ -200,10 +191,10 @@ const registrarIntentoSubasta = async (req, res) => {
       });
     }
 
-    activity.agregarIntentoSubasta(productoId, tituloProducto, categoria, precioInicial, exitoso, razonFallo);
+    // 'nuevo' o null llegan cuando la subasta no se llegó a crear.
+    const idValido = mongoose.isValidObjectId(productoId) ? productoId : undefined;
+    activity.agregarIntentoSubasta(idValido, tituloProducto, categoria, precioInicial, exitoso, razonFallo);
     await activity.save();
-
-    console.log('🎯 Intento de subasta registrado');
 
     res.json({
       success: true,
@@ -216,8 +207,7 @@ const registrarIntentoSubasta = async (req, res) => {
     console.error('❌ Error registrando intento:', error);
     res.status(500).json({
       success: false,
-      message: 'Error del servidor',
-      error: error.message
+      message: 'Error del servidor'
     });
   }
 };
@@ -291,10 +281,10 @@ const obtenerResumen = async (req, res) => {
 // Obtener reporte completo
 const obtenerReporteCompleto = async (req, res) => {
   try {
-    const { fechaInicio, fechaFin, userId } = req.query;
-    let filtro = {};
-    
-    if (userId) filtro.usuario = userId;
+    const { fechaInicio, fechaFin } = req.query;
+    // No hay rol de administrador: cada cuenta solo puede ver su propia actividad.
+    let filtro = { usuario: req.user._id };
+
     if (fechaInicio || fechaFin) {
       filtro['horaIngreso.fechaCompleta'] = {};
       if (fechaInicio) filtro['horaIngreso.fechaCompleta'].$gte = new Date(fechaInicio);

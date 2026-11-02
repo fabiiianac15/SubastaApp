@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const validarId = require('../middleware/validarId');
+
+router.param('sessionId', validarId);
 const {
   iniciarSesion,
   actualizarTiempo,

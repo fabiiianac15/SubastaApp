@@ -28,28 +28,24 @@ const userActivitySchema = new mongoose.Schema({
   // Almacena: país, ciudad, latitud, longitud, zona horaria
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   ubicacion: {
+    // Sin permiso de ubicación y con una IP local no hay coordenadas: la sesión
+    // se registra igual, con la ubicación como desconocida.
     pais: {
       type: String,
-      required: true
+      default: 'Desconocido'
     },
     ciudad: {
       type: String,
-      required: true
+      default: 'Desconocida'
     },
     region: String,
-    latitud: {
-      type: Number,
-      required: true
-    },
-    longitud: {
-      type: Number,
-      required: true
-    },
+    latitud: Number,
+    longitud: Number,
     zona_horaria: String,
     proveedor: {
       type: String,
-      enum: ['navegador', 'geoip-lite'],
-      default: 'geoip-lite'
+      enum: ['navegador', 'geoip-lite', 'desconocido'],
+      default: 'desconocido'
     }
   },
   
